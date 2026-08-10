@@ -61,14 +61,9 @@ class Deck:
         for key, spec in (self.profile.get("keys") or {}).items():
             icon = spec.get("icon")
             if icon and os.path.exists(self.asset(icon)):
-                img = renderer.load_icon(self.asset(icon), protocol.KEY_LCD)
-                self.try_send(self.dev.set_key_image, int(key), renderer.to_bytes(img))
-
-    def try_send(self, fn, *args):
-        try:
-            fn(*args)
-        except NotImplementedError as e:
-            print(f"protocol stub: {e}", file=sys.stderr)
+                img = renderer.load_icon(self.asset(icon), protocol.KEY_LCD, protocol.ROTATION)
+                self.dev.send_image(int(key), renderer.to_jpeg(img))
+        self.dev.flush()
 
     def switch_profile(self, name):
         self.profile = load_profile(name)
@@ -93,6 +88,15 @@ class Deck:
             spec = (self.profile.get("knobs") or {}).get(str(idx)) or {}
             run_action(spec.get("press"))
 
+    STRIP_FULL = (protocol.STRIP_LCD[0] * 4, protocol.STRIP_LCD[1])
+
+    def push_strip_frame(self, frame):
+        w, h = protocol.STRIP_LCD
+        for seg in range(4):
+            part = frame.crop((seg * w, 0, (seg + 1) * w, h))
+            self.dev.send_image(seg, renderer.to_jpeg(part), strip=True)
+        self.dev.flush()
+
     def idle_tick(self, now):
         if now - self.last_activity < IDLE_SECONDS:
             return
@@ -101,16 +105,16 @@ class Deck:
         if not os.path.exists(path):
             return
         if not self.idle_playing:
-            self.gif_iter = renderer.gif_frames(path, protocol.STRIP_LCD)
+            self.gif_iter = renderer.gif_frames(path, self.STRIP_FULL, protocol.ROTATION)
             self.idle_playing = True
             self.gif_next = 0.0
         if now >= self.gif_next:
             try:
                 frame, delay = next(self.gif_iter)
             except StopIteration:
-                self.gif_iter = renderer.gif_frames(path, protocol.STRIP_LCD)
+                self.gif_iter = renderer.gif_frames(path, self.STRIP_FULL, protocol.ROTATION)
                 frame, delay = next(self.gif_iter)
-            self.try_send(self.dev.set_strip_image, renderer.to_bytes(frame))
+            self.push_strip_frame(frame)
             self.gif_next = now + delay
 
     def run(self):

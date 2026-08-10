@@ -1,0 +1,54 @@
+name: streaming
+strip:
+  gif: gifs/jjk.gif
+keys:
+  "0":
+    icon: icons/obs_live.png
+    action: obs-cli stream start
+  "1":
+    icon: icons/obs_stop.png
+    action: obs-cli stream stop
+  "2":
+    icon: icons/obs_record.png
+    action: obs-cli recording toggle
+  "3":
+    icon: icons/scene_main.png
+    action: obs-cli scene switch "Main"
+  "4":
+    icon: icons/scene_brb.png
+    action: obs-cli scene switch "BRB"
+  "5":
+    icon: icons/mic_mute.png
+    action: wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
+  "6":
+    icon: icons/cam_toggle.png
+    action: obs-cli source toggle "Camera"
+  "7":
+    icon: icons/clip.png
+    action: obs-cli replaybuffer save
+  "8":
+    icon: icons/screenshot.png
+    action: obs-cli screenshot save
+  "9":
+    icon: icons/switch_ai.png
+    profile: ai-tools
+knobs:
+  "0":
+    rotate:
+      cw: wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
+      ccw: wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
+    press: wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
+  "1":
+    rotate:
+      cw: wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 5%+
+      ccw: wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 5%-
+    press: wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
+  "2":
+    rotate:
+      cw: brightnessctl set 5%+
+      ccw: brightnessctl set 5%-
+  "3":
+    rotate:
+      cw: playerctl next
+      ccw: playerctl previous
+    press: playerctl play-pause

@@ -1,0 +1,11 @@
+[Unit]
+Description=Ragnaros stream deck daemon
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.config/ragnaros/daemon/ragnarosd.py
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

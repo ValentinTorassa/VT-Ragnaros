@@ -1,5 +1,7 @@
-import glob
-import os
+import ctypes
+import ctypes.util
+
+from inputmap import parse_input
 
 VID = 0x0200
 PID = 0x3001
@@ -20,45 +22,172 @@ STRIP_TO_SLOT = {0: 0, 1: 1, 2: 2, 3: 3}
 CRT = (0x43, 0x52, 0x54)
 
 
-def find_hidraw_nodes():
-    nodes = []
-    for uevent in glob.glob("/sys/class/hidraw/hidraw*/device/uevent"):
-        try:
-            with open(uevent) as f:
-                data = f.read().replace(":", "")
-        except OSError:
-            continue
-        if f"{VID:08X}" in data and f"{PID:08X}" in data:
-            nodes.append("/dev/" + uevent.split("/")[4])
-    return sorted(nodes)
+def activate_input():
+    library = ctypes.util.find_library("usb-1.0")
+    if not library:
+        raise RuntimeError("libusb-1.0 is required to activate Ragnaros input")
 
+    usb = ctypes.CDLL(library)
+    usb.libusb_init.argtypes = [ctypes.POINTER(ctypes.c_void_p)]
+    usb.libusb_open_device_with_vid_pid.argtypes = [ctypes.c_void_p, ctypes.c_uint16, ctypes.c_uint16]
+    usb.libusb_open_device_with_vid_pid.restype = ctypes.c_void_p
+    for name in (
+        "libusb_kernel_driver_active",
+        "libusb_detach_kernel_driver",
+        "libusb_claim_interface",
+        "libusb_release_interface",
+        "libusb_attach_kernel_driver",
+    ):
+        getattr(usb, name).argtypes = [ctypes.c_void_p, ctypes.c_int]
+    usb.libusb_control_transfer.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_uint8,
+        ctypes.c_uint8,
+        ctypes.c_uint16,
+        ctypes.c_uint16,
+        ctypes.POINTER(ctypes.c_uint8),
+        ctypes.c_uint16,
+        ctypes.c_uint,
+    ]
+    usb.libusb_interrupt_transfer.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_ubyte,
+        ctypes.POINTER(ctypes.c_uint8),
+        ctypes.c_int,
+        ctypes.POINTER(ctypes.c_int),
+        ctypes.c_uint,
+    ]
+    usb.libusb_close.argtypes = [ctypes.c_void_p]
+    usb.libusb_exit.argtypes = [ctypes.c_void_p]
 
-def find_vendor_node():
-    for node in find_hidraw_nodes():
-        desc = f"/sys/class/hidraw/{node.split('/')[-1]}/device/report_descriptor"
-        try:
-            with open(desc, "rb") as f:
-                if f.read(4) == b"\x06\xa0\xff\x09":
-                    return node
-        except OSError:
-            continue
-    return None
+    context = ctypes.c_void_p()
+    result = usb.libusb_init(ctypes.byref(context))
+    if result < 0:
+        raise RuntimeError(f"libusb initialization failed ({result})")
+
+    handle = None
+    detached = []
+    claimed = []
+    try:
+        handle = usb.libusb_open_device_with_vid_pid(context, VID, PID)
+        if not handle:
+            raise RuntimeError("cannot open Ragnaros USB device; check udev permissions")
+        for interface in (0, 1):
+            if usb.libusb_kernel_driver_active(handle, interface) == 1:
+                result = usb.libusb_detach_kernel_driver(handle, interface)
+                if result < 0:
+                    raise RuntimeError(f"cannot detach HID interface {interface} ({result})")
+                detached.append(interface)
+        for interface in (0, 1):
+            result = usb.libusb_claim_interface(handle, interface)
+            if result < 0:
+                raise RuntimeError(f"cannot claim HID interface {interface} ({result})")
+            claimed.append(interface)
+
+        report = (ctypes.c_uint8 * READ_SIZE)()
+        result = usb.libusb_control_transfer(
+            handle, 0x80, 0x06, 0x0302, 0x0409, report, 255, 1000
+        )
+        if result < 0:
+            raise RuntimeError(f"Ragnaros product descriptor request failed ({result})")
+        result = usb.libusb_control_transfer(handle, 0x21, 0x0A, 0, 0, report, 0, 1000)
+        if result < 0:
+            raise RuntimeError(f"Ragnaros SET_IDLE failed ({result})")
+        result = usb.libusb_control_transfer(
+            handle, 0x80, 0x06, 0x0301, 0x0409, report, 255, 1000
+        )
+        if result < 0:
+            raise RuntimeError(f"Ragnaros manufacturer descriptor request failed ({result})")
+        result = usb.libusb_control_transfer(
+            handle, 0x81, 0x06, 0x2200, 0, report, 118, 1000
+        )
+        if result < 0:
+            raise RuntimeError(f"Ragnaros report descriptor request failed ({result})")
+        result = usb.libusb_control_transfer(
+            handle, 0x80, 0x06, 0x0302, 0x0409, report, 255, 1000
+        )
+        if result < 0:
+            raise RuntimeError(f"Ragnaros product descriptor request failed ({result})")
+    except Exception:
+        if handle:
+            for interface in reversed(claimed):
+                usb.libusb_release_interface(handle, interface)
+            for interface in reversed(detached):
+                usb.libusb_attach_kernel_driver(handle, interface)
+            usb.libusb_close(handle)
+        usb.libusb_exit(context)
+        raise
+    return usb, context, handle, detached, claimed
 
 
 class Ragnaros:
-    def __init__(self, path=None):
-        self.path = path or find_vendor_node()
-        if not self.path:
-            raise RuntimeError("Ragnaros vendor interface not found")
-        self.fd = os.open(self.path, os.O_RDWR | os.O_NONBLOCK)
+    def __init__(self):
+        self.usb, self.context, self.handle, self.detached, self.claimed = activate_input()
+        self.path = f"libusb:{VID:04x}:{PID:04x}"
         self._initialized = False
 
     def close(self):
-        os.close(self.fd)
+        if not self.handle:
+            return
+        for interface in reversed(self.claimed):
+            self.usb.libusb_release_interface(self.handle, interface)
+        for interface in reversed(self.detached):
+            self.usb.libusb_attach_kernel_driver(self.handle, interface)
+        self.usb.libusb_close(self.handle)
+        self.usb.libusb_exit(self.context)
+        self.handle = None
+
+    def control(self, request_type, request, value, index, data_or_length, timeout=1000):
+        if isinstance(data_or_length, int):
+            buffer = (ctypes.c_uint8 * data_or_length)()
+            length = data_or_length
+        else:
+            payload = bytes(data_or_length)
+            buffer = (ctypes.c_uint8 * len(payload)).from_buffer_copy(payload)
+            length = len(payload)
+        result = self.usb.libusb_control_transfer(
+            self.handle, request_type, request, value, index, buffer, length, timeout
+        )
+        if result < 0:
+            raise RuntimeError(f"Ragnaros control transfer failed ({result})")
+        return bytes(buffer[:result])
+
+    def get_feature_report(self, report_id, length):
+        return self.control(0xA1, 0x01, (0x03 << 8) | report_id, 0, length)
+
+    def get_input_report(self, report_id, length):
+        return self.control(0xA1, 0x01, (0x01 << 8) | report_id, 0, length)
+
+    def send_feature_report(self, payload):
+        self.control(0x21, 0x09, (0x03 << 8) | (payload[0] if payload else 0), 0, payload)
+
+    def transfer(self, endpoint, payload, timeout):
+        buffer = (ctypes.c_uint8 * len(payload)).from_buffer_copy(payload)
+        transferred = ctypes.c_int()
+        result = self.usb.libusb_interrupt_transfer(
+            self.handle,
+            endpoint,
+            buffer,
+            len(buffer),
+            ctypes.byref(transferred),
+            timeout,
+        )
+        if result == -7:
+            return None
+        if result < 0:
+            raise RuntimeError(f"Ragnaros endpoint {endpoint:#04x} transfer failed ({result})")
+        if not endpoint & 0x80 and transferred.value != len(payload):
+            raise RuntimeError(
+                f"short write to Ragnaros endpoint {endpoint:#04x} "
+                f"({transferred.value}/{len(payload)} bytes)"
+            )
+        return bytes(buffer[: transferred.value])
 
     def write(self, payload):
         buf = bytes(payload) + b"\x00" * (1 + PACKET_SIZE - len(payload))
-        os.write(self.fd, buf)
+        if len(buf) != PACKET_SIZE + 1:
+            raise ValueError("Ragnaros output report exceeds 1024 bytes")
+        self.transfer(0x03, buf[1:], 1000)
 
     def command(self, *tail):
         self.write([0x00, *CRT, 0x00, 0x00, *tail])
@@ -101,7 +230,7 @@ class Ragnaros:
         self.command(0x42, 0x41, 0x54, 0x00, 0x00, size >> 8, size & 0xFF, slot + 1)
         for offset in range(0, size, PACKET_SIZE):
             chunk = image_data[offset : offset + PACKET_SIZE]
-            os.write(self.fd, b"\x00" + chunk + b"\x00" * (PACKET_SIZE - len(chunk)))
+            self.write(b"\x00" + chunk)
 
     def flush(self):
         self.command(0x53, 0x54, 0x50)
@@ -122,11 +251,8 @@ class Ragnaros:
         self.command(0x43, 0x4C, 0x45, 0x00, 0x00, 0x44, 0x43)
         self.command(0x48, 0x41, 0x4E)
 
-    def poll(self):
-        try:
-            data = os.read(self.fd, READ_SIZE)
-        except BlockingIOError:
+    def poll(self, timeout=10):
+        data = self.transfer(0x82, bytes(READ_SIZE), timeout)
+        if data is None:
             return None
-        if len(data) > 10 and data[:3] == b"ACK":
-            return (data[9], data[10])
-        return ("raw", data[:16].hex())
+        return parse_input(data)

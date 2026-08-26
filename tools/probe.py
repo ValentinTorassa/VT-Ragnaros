@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import fcntl
 import os
 import sys
 import time
@@ -8,17 +7,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from protocol import Ragnaros
 
-HIDIOCGFEATURE = lambda n: (3 << 30) | (ord("H") << 8) | 0x07 | (n << 16)
-
 deck = Ragnaros()
 print("== feature report probes ==")
 for rid in range(0, 4):
-    buf = bytearray(32)
-    buf[0] = rid
     try:
-        fcntl.ioctl(deck.fd, HIDIOCGFEATURE(32), buf, True)
-        print(f"feature {rid}: {bytes(buf).hex(' ')}")
-    except OSError as e:
+        data = deck.get_feature_report(rid, 32)
+        print(f"feature {rid}: {data.hex(' ')}")
+    except RuntimeError as e:
         print(f"feature {rid}: {e}")
 
 print("== magic command probes (keep pressing keys!) ==")
@@ -35,13 +30,10 @@ deck.initialize()
 def drain(window=0.35):
     end = time.monotonic() + window
     while time.monotonic() < end:
-        try:
-            data = os.read(deck.fd, 512)
-            if data:
-                print(f"  INPUT! {len(data)}B {data[:32].hex(' ')}")
-                return True
-        except BlockingIOError:
-            time.sleep(0.01)
+        data = deck.transfer(0x82, bytes(512), 50)
+        if data:
+            print(f"  INPUT! {len(data)}B {data[:32].hex(' ')}")
+            return True
     return False
 
 

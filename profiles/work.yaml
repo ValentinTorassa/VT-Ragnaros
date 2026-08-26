@@ -1,4 +1,4 @@
-name: streaming
+name: work
 strip:
   segments:
     - gifs/segments/gojo.gif
@@ -7,35 +7,35 @@ strip:
     - gifs/segments/nanami.gif
 keys:
   "0":
-    icon: icons/brave.png
-    action: gtk-launch com.brave.Browser
-  "1":
-    icon: icons/chrome.png
-    action: gtk-launch com.google.Chrome
-  "2":
-    icon: icons/discord.png
-    action: gtk-launch discord
-  "3":
-    icon: icons/ghostty.png
-    action: ghostty
-  "4":
-    icon: icons/obs.png
-    action: gtk-launch com.obsproject.Studio
-  "5":
-    icon: icons/bitwarden.png
-    action: gtk-launch com.bitwarden.desktop
-  "6":
-    icon: icons/mic_mute.png
-    action: wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
-  "7":
     icon: icons/folder.png
-    action: nautilus
+    action: ghostty --working-directory=~/proyectos/trabajo
+  "1":
+    icon: icons/creatorstack.png
+    action: ghostty --working-directory=~/proyectos/personal
+  "2":
+    icon: icons/codex.png
+    action: ghostty -e codex
+  "3":
+    icon: icons/lazydocker.png
+    action: ghostty -e lazydocker
+  "4":
+    icon: icons/awsvpn.png
+    action: gtk-launch awsvpnclient
+  "5":
+    icon: icons/whatsapp.png
+    action: whatsapp-linux-app
+  "6":
+    icon: icons/firefox.png
+    action: firefox-esr
+  "7":
+    icon: icons/thunderbird.png
+    action: thunderbird
   "8":
-    icon: icons/lock.png
-    action: loginctl lock-session
+    icon: icons/aws.png
+    action: xdg-open https://console.aws.amazon.com
   "9":
-    icon: icons/work.png
-    profile: work
+    icon: icons/switch_ai.gif
+    profile: ai-tools
 knobs:
   "0":
     rotate:

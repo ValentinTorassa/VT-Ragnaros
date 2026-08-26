@@ -10,6 +10,10 @@ ln -sfn "$REPO_DIR/profiles" "$CONFIG_DIR/profiles"
 ln -sfn "$REPO_DIR/assets" "$CONFIG_DIR/assets"
 
 sudo install -m 0644 "$REPO_DIR/udev/99-ragnaros.rules" /etc/udev/rules.d/99-ragnaros.rules
+sudo install -m 0644 "$REPO_DIR/udev/ragnaros-usbhid.conf" /etc/modprobe.d/ragnaros-usbhid.conf
+if command -v update-initramfs >/dev/null 2>&1; then
+  sudo update-initramfs -u
+fi
 sudo udevadm control --reload-rules
 sudo udevadm trigger
 
@@ -20,4 +24,5 @@ systemctl --user enable ragnarosd.service
 
 python3 -c "import PIL, yaml" || pip install --user -r "$REPO_DIR/requirements.txt"
 
-echo "Installed. Start with: systemctl --user start ragnarosd"
+echo "Installed. Reboot once to activate the Ragnaros HID quirk, then start with:"
+echo "  systemctl --user start ragnarosd"

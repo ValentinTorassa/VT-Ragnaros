@@ -1,6 +1,10 @@
 name: ai-tools
 strip:
-  gif: gifs/jjk.gif
+  segments:
+    - gifs/segments/gojo.gif
+    - gifs/segments/yuta.gif
+    - gifs/segments/toji.gif
+    - gifs/segments/nanami.gif
 keys:
   "0":
     icon: icons/opencode.png
@@ -9,26 +13,26 @@ keys:
     icon: icons/claude.png
     action: ghostty -e claude
   "2":
-    icon: icons/aider.png
-    action: ghostty -e aider
-  "3":
     icon: icons/chatgpt.png
     action: xdg-open https://chat.openai.com
+  "3":
+    icon: icons/cursor.png
+    action: cursor
   "4":
+    icon: icons/zed.png
+    action: zed
+  "5":
+    icon: icons/vscode.png
+    action: code
+  "6":
+    icon: icons/github.png
+    action: github-desktop
+  "7":
     icon: icons/tmux.png
     action: ghostty -e tmux attach
-  "5":
-    icon: icons/whisper.png
-    action: whisper-paste-toggle
-  "6":
-    icon: icons/tests.png
-    action: ghostty -e sh -c "npm test; read"
-  "7":
-    icon: icons/git.png
-    action: ghostty -e sh -c "git status; read"
   "8":
-    icon: icons/clipboard.png
-    action: sh -c "wl-paste | xclip -selection clipboard"
+    icon: icons/dbeaver.png
+    action: dbeaver-ce
   "9":
     icon: icons/switch_stream.png
     profile: streaming
@@ -38,6 +42,15 @@ knobs:
       cw: wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
       ccw: wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
     press: wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
+  "1":
+    rotate:
+      cw: playerctl volume 0.05+
+      ccw: playerctl volume 0.05-
+    press: playerctl play-pause
+  "2":
+    rotate:
+      cw: brightnessctl set 5%+
+      ccw: brightnessctl set 5%-
   "3":
     rotate:
       cw: playerctl next

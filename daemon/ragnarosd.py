@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 import os
 import shlex
 import subprocess
@@ -13,6 +14,9 @@ import protocol
 import renderer
 
 CONFIG_DIR = os.environ.get("RAGNAROS_CONFIG", os.path.expanduser("~/.config/ragnaros"))
+STATE_DIR = os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state"))
+USAGE_LOG = os.environ.get(
+    "RAGNAROS_USAGE_LOG", os.path.join(STATE_DIR, "ragnaros", "usage.jsonl"))
 IDLE_SECONDS = float(os.environ.get("RAGNAROS_IDLE_SECONDS", "10"))
 
 
@@ -80,6 +84,21 @@ class Deck:
         self.profile = load_profile(name)
         self.apply_profile()
 
+    def log_usage(self, event, action):
+        try:
+            os.makedirs(os.path.dirname(USAGE_LOG), exist_ok=True)
+            with open(USAGE_LOG, "a") as f:
+                f.write(json.dumps({
+                    "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                    "profile": self.profile.get("name") or "unknown",
+                    "kind": event[0],
+                    "idx": event[1],
+                    "value": event[2],
+                    "action": action,
+                }) + "\n")
+        except OSError:
+            pass
+
     def handle_event(self, event):
         self.last_activity = time.monotonic()
         self.idle_playing = False
@@ -87,8 +106,10 @@ class Deck:
         if kind == "key" and value:
             spec = (self.profile.get("keys") or {}).get(str(idx)) or {}
             if "profile" in spec:
+                self.log_usage(event, f"switch:{spec['profile']}")
                 self.switch_profile(spec["profile"])
             else:
+                self.log_usage(event, spec.get("action"))
                 run_action(spec.get("action"))
         elif kind == "knob":
             # the device bursts several reports per detent; act on one per 120ms
@@ -100,9 +121,12 @@ class Deck:
             spec = (self.profile.get("knobs") or {}).get(str(idx)) or {}
             rotate = spec.get("rotate")
             if isinstance(rotate, dict):
-                run_action(rotate.get("cw" if value > 0 else "ccw"))
+                action = rotate.get("cw" if value > 0 else "ccw")
+                self.log_usage(event, action)
+                run_action(action)
         elif kind == "knob_press":
             spec = (self.profile.get("knobs") or {}).get(str(idx)) or {}
+            self.log_usage(event, spec.get("press"))
             run_action(spec.get("press"))
 
     STRIP_FULL = (protocol.STRIP_LCD[0] * 4, protocol.STRIP_LCD[1])

@@ -1,0 +1,6 @@
+[Unit]
+Description=Ragnaros weekly JJK GIF refresh
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.config/ragnaros/tools/fetch_gifs.py

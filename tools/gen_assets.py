@@ -53,6 +53,18 @@ ICONS = {
     "codex":        (0xF5DC, "CDX",    (130, 250, 160)),
     "lazydocker":   (0xF1B3, "DOCK",   ( 90, 200, 250)),
     "aws":          (0xF0C2, "AWS",    (250, 190,  60)),
+    "pomodoro":     (0xF017, "POMO",   (250, 170,  60)),
+}
+
+# state-aware tiles: name -> (glyph, caption, accent, glyph fill)
+STATE_TILES = {
+    "mic_muted":     (0xF131, "MUTED", (255, 90, 90),  (255, 105, 105, 255)),
+    "obs_live_on":   (0xF519, "LIVE",  (130, 250, 150), (150, 255, 170, 255)),
+    "obs_live_off":  (0xF519, "LIVE",  (95, 98, 110),  (120, 124, 135, 255)),
+    "obs_record_on": (0xF111, "REC",   (255, 90, 90),  (255, 110, 110, 255)),
+    "obs_record_off":(0xF111, "REC",   (95, 98, 110),  (120, 124, 135, 255)),
+    "obs_pause_on":  (0xF04C, "PAUSE", (250, 200, 80), (255, 220, 110, 255)),
+    "obs_pause_off": (0xF04C, "PAUSE", (95, 98, 110),  (120, 124, 135, 255)),
 }
 
 # real app icons: name -> source PNG on this system
@@ -165,6 +177,11 @@ def main():
     for name, (glyph, caption, accent) in ICONS.items():
         make_icon(glyph, caption, accent).save(os.path.join(ICON_DIR, name + ".png"))
     print(f"wrote {len(ICONS)} glyph tiles -> {ICON_DIR}")
+
+    for name, (glyph, caption, accent, fill) in STATE_TILES.items():
+        paint_glyph(dark_tile(), glyph, caption, accent, glyph_fill=fill).convert("RGB") \
+            .save(os.path.join(ICON_DIR, name + ".png"))
+    print(f"wrote {len(STATE_TILES)} state tiles -> {ICON_DIR}")
 
     animated = {
         "obs_live": make_pulse_icon(*ICONS["obs_live"]),

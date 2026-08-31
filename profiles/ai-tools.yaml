@@ -2,8 +2,8 @@ name: ai-tools
 strip:
   segments:
     - gifs/segments/gojo.gif
-    - gifs/segments/yuta.gif
-    - gifs/segments/toji.gif
+    - gifs/segments/auto_W0sQ3_QU.gif
+    - gifs/segments/auto_OLhUrrat.gif
     - gifs/segments/nanami.gif
 keys:
   "0":
@@ -35,7 +35,7 @@ keys:
     action: dbeaver-ce
   "9":
     icon: icons/switch_stream.png
-    profile: streaming
+    profile: stream
 knobs:
   "0":
     rotate:

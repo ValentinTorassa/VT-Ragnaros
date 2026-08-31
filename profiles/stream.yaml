@@ -1,0 +1,49 @@
+name: stream
+strip:
+  segments:
+    - gifs/segments/gojo.gif
+    - gifs/segments/auto_W0sQ3_QU.gif
+    - gifs/segments/auto_OLhUrrat.gif
+    - gifs/segments/nanami.gif
+keys:
+  "0":
+    icon: icons/obs.png
+    action: gtk-launch com.obsproject.Studio
+  "1":
+    icon: icons/obs_live_off.png
+    action: obs:stream-toggle
+  "2":
+    icon: icons/obs_record_off.png
+    action: obs:record-toggle
+  "3":
+    icon: icons/obs_pause_off.png
+    action: obs:pause-toggle
+  "4":
+    icon: icons/clip.png
+    action: obs:replay-save
+  "5":
+    icon: icons/scene_main.png
+    action: obs:scene:0
+  "6":
+    icon: icons/scene_brb.png
+    action: obs:scene:1
+  "7":
+    icon: icons/mic_mute.png
+    action: wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
+  "8":
+    icon: icons/lock.png
+    action: loginctl lock-session
+  "9":
+    icon: icons/switch_stream.png
+    profile: streaming
+knobs:
+  "0":
+    rotate:
+      cw: wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
+      ccw: wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
+    press: wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
+  "3":
+    rotate:
+      cw: playerctl next
+      ccw: playerctl previous
+    press: playerctl play-pause

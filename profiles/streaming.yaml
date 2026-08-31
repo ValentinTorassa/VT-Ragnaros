@@ -2,8 +2,8 @@ name: streaming
 strip:
   segments:
     - gifs/segments/gojo.gif
-    - gifs/segments/yuta.gif
-    - gifs/segments/toji.gif
+    - gifs/segments/auto_W0sQ3_QU.gif
+    - gifs/segments/auto_OLhUrrat.gif
     - gifs/segments/nanami.gif
 keys:
   "0":
@@ -28,8 +28,8 @@ keys:
     icon: icons/mic_mute.png
     action: wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
   "7":
-    icon: icons/folder.png
-    action: nautilus
+    icon: icons/pomodoro.png
+    action: pomodoro
   "8":
     icon: icons/lock.png
     action: loginctl lock-session

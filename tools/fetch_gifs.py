@@ -22,7 +22,7 @@ QUERIES = ["gojo-satoru", "sukuna", "nanami-jjk", "yuji-itadori", "megumi-fushig
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36"
 W, H = 176, 124
 # user hand-picked anchors, always kept at the ends of the strip
-ANCHOR_FIRST, ANCHOR_LAST = "gojo.gif", "nanami.gif"
+ANCHOR_FIRST, ANCHOR_LAST = "sukuna_fire.gif", "sukuna_fire2.gif"
 
 
 def tenor_candidates(query):

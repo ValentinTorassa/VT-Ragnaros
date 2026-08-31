@@ -1,10 +1,10 @@
 name: stream
 strip:
   segments:
-    - gifs/segments/gojo.gif
+    - gifs/segments/sukuna_fire.gif
     - gifs/segments/auto_W0sQ3_QU.gif
     - gifs/segments/auto_OLhUrrat.gif
-    - gifs/segments/nanami.gif
+    - gifs/segments/sukuna_fire2.gif
 keys:
   "0":
     icon: icons/obs.png

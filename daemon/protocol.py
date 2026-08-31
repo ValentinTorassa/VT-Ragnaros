@@ -83,31 +83,6 @@ def activate_input():
             if result < 0:
                 raise RuntimeError(f"cannot claim HID interface {interface} ({result})")
             claimed.append(interface)
-
-        report = (ctypes.c_uint8 * READ_SIZE)()
-        result = usb.libusb_control_transfer(
-            handle, 0x80, 0x06, 0x0302, 0x0409, report, 255, 1000
-        )
-        if result < 0:
-            raise RuntimeError(f"Ragnaros product descriptor request failed ({result})")
-        result = usb.libusb_control_transfer(handle, 0x21, 0x0A, 0, 0, report, 0, 1000)
-        if result < 0:
-            raise RuntimeError(f"Ragnaros SET_IDLE failed ({result})")
-        result = usb.libusb_control_transfer(
-            handle, 0x80, 0x06, 0x0301, 0x0409, report, 255, 1000
-        )
-        if result < 0:
-            raise RuntimeError(f"Ragnaros manufacturer descriptor request failed ({result})")
-        result = usb.libusb_control_transfer(
-            handle, 0x81, 0x06, 0x2200, 0, report, 118, 1000
-        )
-        if result < 0:
-            raise RuntimeError(f"Ragnaros report descriptor request failed ({result})")
-        result = usb.libusb_control_transfer(
-            handle, 0x80, 0x06, 0x0302, 0x0409, report, 255, 1000
-        )
-        if result < 0:
-            raise RuntimeError(f"Ragnaros product descriptor request failed ({result})")
     except Exception:
         if handle:
             for interface in reversed(claimed):

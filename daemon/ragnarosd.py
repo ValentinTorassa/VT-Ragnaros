@@ -101,6 +101,7 @@ class Deck:
         self.obs_keys = {}
         self.obs_next_try = 0.0
         self.obs_warn_next = 0.0
+        self.keepalive_next = 0.0
 
     def asset(self, rel):
         return os.path.join(CONFIG_DIR, "assets", rel)
@@ -134,6 +135,9 @@ class Deck:
         self.repaint_mic()
         self.repaint_pomo()
         self.repaint_obs()
+        self.idle_playing = False
+        self.last_activity = time.monotonic() - IDLE_SECONDS
+        self.idle_tick(time.monotonic())
 
     def switch_profile(self, name):
         self.profile = load_profile(name)
@@ -195,10 +199,13 @@ class Deck:
 
     def push_strip_frame(self, frame):
         w, h = protocol.STRIP_LCD
+        parts = []
         for seg in range(4):
-            part = frame.crop((seg * w, 0, (seg + 1) * w, h))
-            self.dev.send_image(seg, renderer.to_jpeg(part), strip=True)
-            self.dev.flush()  # strip segments only display when flushed per image
+            parts.append(renderer.to_jpeg(frame.crop((seg * w, 0, (seg + 1) * w, h))))
+        for _ in range(2):
+            for seg, data in enumerate(parts):
+                self.dev.send_image(seg, data, strip=True)
+                self.dev.flush()
 
     def idle_gifs(self):
         gifs = (self.profile.get("strip") or {}).get("gif", "gifs/nanami.gif")
@@ -249,12 +256,19 @@ class Deck:
 
     def push_segment_frames(self):
         delay = 0.1
+        jpeg = [None] * len(self.seg_loops)
         for seg, loop in enumerate(self.seg_loops):
             frames, idx = loop
             frame, delay = frames[idx]
+            jpeg[seg] = renderer.to_jpeg(frame)
             loop[1] = (idx + 1) % len(frames)
-            self.dev.send_image(seg, renderer.to_jpeg(frame), strip=True)
-            self.dev.flush()  # strip segments only display when flushed per image
+        # write all segments, twice each, with a single flush at the end of each
+        # repetition so the device never has a gap to fall back to its
+        # default Reddragon logo on the strip LCD.
+        for _ in range(2):
+            for seg, data in enumerate(jpeg):
+                self.dev.send_image(seg, data, strip=True)
+                self.dev.flush()
         return delay
 
     def push_wide_frame(self):
@@ -509,6 +523,12 @@ class Deck:
             self.apply_profile()
             while True:
                 try:
+                    # the device watchdog drops the strip to its default
+                    # logo without a periodic CONNECT (official app: 10s timer)
+                    now = time.monotonic()
+                    if now >= self.keepalive_next and not os.environ.get("RAGNAROS_NO_KEEPALIVE"):
+                        self.dev.keep_alive()
+                        self.keepalive_next = now + 8.0
                     event = self.dev.poll(50)
                     if event:
                         self.handle_event(event)

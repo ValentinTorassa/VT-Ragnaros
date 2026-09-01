@@ -46,6 +46,7 @@ def fetch(url_id, name):
 
 
 def to_segment(src_path, dst_path, max_frames=40):
+    from PIL import ImageStat
     img = Image.open(src_path)
     n = getattr(img, "n_frames", 1)
     if n < 8:
@@ -55,12 +56,18 @@ def to_segment(src_path, dst_path, max_frames=40):
     for i in range(0, n, step):
         img.seek(i)
         f = img.convert("RGB")
+        # drop dark flat frames (gaps/black tails that read as LCD flashes)
+        st = ImageStat.Stat(f.convert("L").resize((64, 45)))
+        if st.stddev[0] < 18 and st.mean[0] < 30:
+            continue
         scale = max(W / f.width, H / f.height)
         f = f.resize((int(f.width * scale) + 1, int(f.height * scale) + 1), Image.LANCZOS)
         x, y = (f.width - W) // 2, (f.height - H) // 2
         frames.append(f.crop((x, y, x + W, y + H)))
+    if len(frames) < 8:
+        raise ValueError("too few frames after black-frame filter")
     frames[0].save(dst_path, save_all=True, append_images=frames[1:],
-                   duration=90, loop=0, optimize=True)
+                   duration=40, loop=0, optimize=True)
     return len(frames)
 
 

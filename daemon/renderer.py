@@ -56,9 +56,9 @@ def fit_text(draw, text, max_width, base_size, font_path=FONT_BOLD):
 
 
 def now_playing_strip(title, artist, position, length, size):
-    """704x124 strip frame: title, artist, progress bar."""
+    """704x124 strip frame: title, artist, progress bar on pure black."""
     w, h = size
-    img = Image.new("RGB", (w, h), (10, 12, 18))
+    img = Image.new("RGB", (w, h), (0, 0, 0))
     d = ImageDraw.Draw(img)
     d.text((16, 14), "\u25b6", font=ImageFont.truetype(FONT_BOLD, 20), fill=(120, 220, 160))
     tfont = fit_text(d, title, w - 60, 30)

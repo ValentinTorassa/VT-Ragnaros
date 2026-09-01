@@ -280,9 +280,19 @@ class Deck:
             self.dev.flush()
 
     # -- dynamic state: mic, player, obs ------------------------------------
-    def _run(self, cmd, timeout=1.5):
-        out = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        return out.returncode, out.stdout.strip()
+    def _run(self, cmd, timeout=1.0):
+        try:
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                    stderr=subprocess.DEVNULL, text=True)
+            try:
+                out, _ = proc.communicate(timeout=timeout)
+                return proc.returncode, out.strip()
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+                return -1, ""
+        except (OSError, ValueError):
+            return -1, ""
 
     def repaint_tile(self, key, img):
         self.dev.send_image(key, renderer.to_jpeg(img))
@@ -305,7 +315,8 @@ class Deck:
             if code != 0:
                 return None
             players = [p for p in out.splitlines()
-                       if not (p.startswith("chromium.") or p.startswith("brave.instance"))]
+                       if not (p.startswith(("chromium.", "brave.", "firefox.instance"))
+                              or ".instance" in p)]
             if not players:
                 return None
             player = players[0]
@@ -400,16 +411,22 @@ class Deck:
             if muted != self.mic_muted:
                 self.mic_muted = muted
                 self.repaint_mic()
-        except subprocess.SubprocessError:
+        except Exception:
             pass
-        self.player = self.poll_player()
+        try:
+            self.player = self.poll_player()
+        except Exception:
+            self.player = None
         if self.obs_keys and obsclient and now >= self.obs_next_try:
             try:
                 self.obs_state = obsclient.status()
             except Exception:
                 self.obs_state = None
             self.obs_next_try = now + (3 if self.obs_state else 15)
-            self.repaint_obs()
+            try:
+                self.repaint_obs()
+            except Exception:
+                pass
 
     # -- pomodoro ------------------------------------------------------------
     def notify(self, text):

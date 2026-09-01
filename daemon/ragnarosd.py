@@ -299,11 +299,21 @@ class Deck:
 
     def poll_player(self):
         try:
-            code, out = self._run(["playerctl", "status"])
-            if code != 0 or out != "Playing":
+            # ignore browser-backed "playing" tabs (autoplay, unmuted ads)
+            # that aren't real music sessions
+            code, out = self._run(["playerctl", "-l"], timeout=1.0)
+            if code != 0:
+                return None
+            players = [p for p in out.splitlines()
+                       if not (p.startswith("chromium.") or p.startswith("brave.instance"))]
+            if not players:
+                return None
+            player = players[0]
+            code, out = self._run(["playerctl", "-p", player, "status"])
+            if code != 0 or out.strip() != "Playing":
                 return None
             code, out = self._run([
-                "playerctl", "metadata", "--format",
+                "playerctl", "-p", player, "metadata", "--format",
                 "{{title}}\t{{artist}}\t{{position}}\t{{mpris:length}}"])
             if code != 0:
                 return None
@@ -312,9 +322,11 @@ class Deck:
                 position, secs = float(pos), float(length) / 1_000_000
             except ValueError:
                 return None
-            return {"title": title or "Unknown", "artist": artist,
+            if not title.strip():
+                return None
+            return {"title": title, "artist": artist,
                     "position": position, "length": secs, "ts": time.monotonic()}
-        except (subprocess.SubprocessError, ValueError):
+        except subprocess.SubprocessError:
             return None
 
     def repaint_obs(self):

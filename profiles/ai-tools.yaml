@@ -1,10 +1,10 @@
 name: ai-tools
 strip:
   segments:
-    - gifs/segments/gojo.gif
-    - gifs/segments/auto_W0sQ3_QU.gif
-    - gifs/segments/auto_OLhUrrat.gif
-    - gifs/segments/sukuna_fire2.gif
+    - gifs/segments/auto_5LhLOxI5.gif
+    - gifs/segments/auto_hMd8cHEy.gif
+    - gifs/segments/auto_kdykpIDm.gif
+    - gifs/segments/auto_LmA9KL1I.gif
 keys:
   "0":
     icon: icons/opencode.png

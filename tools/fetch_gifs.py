@@ -22,7 +22,7 @@ QUERIES = ["gojo-satoru", "sukuna", "nanami-jjk", "yuji-itadori", "megumi-fushig
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36"
 W, H = 176, 124
 # user hand-picked anchors, always kept at the ends of the strip
-ANCHOR_FIRST, ANCHOR_LAST = "sukuna_fire.gif", "sukuna_fire2.gif"
+ANCHOR_FIRST, ANCHOR_LAST = "auto_5LhLOxI5.gif", "auto_LmA9KL1I.gif"
 
 
 def tenor_candidates(query):
@@ -74,8 +74,12 @@ def to_segment(src_path, dst_path, max_frames=40):
 def update_profiles(fresh):
     pool = sorted(b for b in os.listdir(SEG_DIR)
                   if b.endswith(".gif") and b not in (ANCHOR_FIRST, ANCHOR_LAST))
-    picks = random.sample(pool, min(2, len(pool)))
-    segments = [f"gifs/segments/{ANCHOR_FIRST}"] + [f"gifs/segments/{p}" for p in picks] + \
+    # show freshly fetched GIFs first; at most 2 middles (2 slots stay for anchors)
+    middle = random.sample(fresh, min(2, len(fresh)))
+    if len(middle) < 2:
+        middle += [b for b in random.sample(pool, min(2 - len(middle), len(pool)))
+                   if b not in middle]
+    segments = [f"gifs/segments/{ANCHOR_FIRST}"] + [f"gifs/segments/{p}" for p in middle] + \
                [f"gifs/segments/{ANCHOR_LAST}"]
     block = "  segments:\n" + "".join(f"    - {s}\n" for s in segments)
     for path in PROFILES:
@@ -93,6 +97,7 @@ def main():
     os.makedirs(SEG_DIR, exist_ok=True)
     os.makedirs("/tmp/opencode", exist_ok=True)
     got = 0
+    fresh = []
     queries = random.sample(QUERIES, len(QUERIES))
     for query in queries:
         if got >= count:
@@ -105,11 +110,12 @@ def main():
                 dst = os.path.join(SEG_DIR, f"auto_{url_id[:8]}.gif")
                 n = to_segment(src, dst)
                 print(f"fetched {query}: {name} ({n} frames)")
+                fresh.append(os.path.basename(dst))
                 got += 1
                 break
             except Exception as e:
                 print(f"  skip {name}: {e}")
-    segments = update_profiles(got)
+    segments = update_profiles(fresh)
     print("strip rotation:", segments)
     subprocess.run(["systemctl", "--user", "try-restart", "ragnarosd.service"],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

@@ -4,6 +4,13 @@ FONT_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
 
+def load_font(path, size):
+    try:
+        return ImageFont.truetype(path, size)
+    except OSError:
+        return ImageFont.load_default(size)
+
+
 def load_icon(path, size, rotation=0):
     img = Image.open(path).convert("RGB").resize(size, Image.LANCZOS)
     return img.rotate(rotation) if rotation else img
@@ -48,24 +55,35 @@ def to_bytes(img):
 def fit_text(draw, text, max_width, base_size, font_path=FONT_BOLD):
     size = base_size
     while size > 10:
-        font = ImageFont.truetype(font_path, size)
+        font = load_font(font_path, size)
         if draw.textbbox((0, 0), text, font=font)[2] <= max_width:
             break
         size -= 1
-    return ImageFont.truetype(font_path, size)
+    return load_font(font_path, size)
 
 
-def now_playing_strip(title, artist, position, length, size):
-    """704x124 strip frame: title, artist, progress bar on pure black."""
+def now_playing_strip(title, artist, position, length, size, art=None):
+    """704x124 strip frame: title, artist, progress bar on pure black.
+
+    When art (a PIL image) is given it is shown as a square thumbnail on
+    the left and the text block shifts right.
+    """
     w, h = size
     img = Image.new("RGB", (w, h), (0, 0, 0))
     d = ImageDraw.Draw(img)
-    d.text((16, 14), "\u25b6", font=ImageFont.truetype(FONT_BOLD, 20), fill=(120, 220, 160))
-    tfont = fit_text(d, title, w - 60, 30)
-    d.text((46, 12), title, font=tfont, fill=(240, 240, 245))
+    x0 = 16
+    if art is not None:
+        side = h - 16
+        thumb = art.convert("RGB")
+        thumb.thumbnail((side, side), Image.LANCZOS)
+        img.paste(thumb, (12, (h - thumb.height) // 2))
+        x0 = 12 + side + 16
+    d.text((x0, 14), "\u25b6", font=load_font(FONT_BOLD, 20), fill=(120, 220, 160))
+    tfont = fit_text(d, title, w - x0 - 46, 30)
+    d.text((x0 + 30, 12), title, font=tfont, fill=(240, 240, 245))
     if artist:
-        afont = fit_text(d, artist, w - 40, 18, FONT)
-        d.text((18, 52), artist, font=afont, fill=(150, 155, 170))
+        afont = fit_text(d, artist, w - x0 - 22, 18, FONT)
+        d.text((x0 + 2, 52), artist, font=afont, fill=(150, 155, 170))
     # progress bar
     frac = max(0.0, min(1.0, position / length)) if length else 0.0
     d.rectangle((16, h - 26, w - 16, h - 18), fill=(30, 32, 42))
@@ -74,11 +92,29 @@ def now_playing_strip(title, artist, position, length, size):
         def mmss(s):
             s = int(s)
             return f"{s // 60}:{s % 60:02d}"
-        pfont = ImageFont.truetype(FONT, 13)
+        pfont = load_font(FONT, 13)
         d.text((16, h - 16), mmss(position), font=pfont, fill=(140, 145, 160))
         end = mmss(length)
         bb = d.textbbox((0, 0), end, font=pfont)
         d.text((w - 16 - (bb[2] - bb[0]), h - 16), end, font=pfont, fill=(140, 145, 160))
+    return img
+
+
+def overlay_strip(label, frac, size):
+    """704x124 transient feedback frame: label + percentage + level bar."""
+    w, h = size
+    frac = max(0.0, min(1.0, frac))
+    img = Image.new("RGB", (w, h), (0, 0, 0))
+    d = ImageDraw.Draw(img)
+    font = load_font(FONT_BOLD, 34)
+    cy = h // 2 - 40
+    d.text((16, cy), label, font=font, fill=(240, 240, 245))
+    pct = f"{int(round(frac * 100))}%"
+    bb = d.textbbox((0, 0), pct, font=font)
+    d.text((w - 16 - (bb[2] - bb[0]), cy), pct, font=font, fill=(120, 200, 250))
+    top, bot = h // 2 + 10, h // 2 + 30
+    d.rectangle((16, top, w - 16, bot), outline=(60, 62, 75), width=2)
+    d.rectangle((20, top + 4, 20 + int((w - 40) * frac), bot - 4), fill=(120, 200, 250))
     return img
 
 

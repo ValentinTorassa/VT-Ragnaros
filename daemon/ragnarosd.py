@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
+import hashlib
 import json
 import os
 import shlex
 import subprocess
 import sys
 import time
+import urllib.parse
+import urllib.request
 
 import yaml
+from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -24,13 +28,19 @@ USAGE_LOG = os.environ.get(
     "RAGNAROS_USAGE_LOG", os.path.join(STATE_DIR, "ragnaros", "usage.jsonl"))
 IDLE_SECONDS = float(os.environ.get("RAGNAROS_IDLE_SECONDS", "10"))
 STATE_POLL = 2.0
+OVERLAY_SECONDS = 1.5
+SEGMENT_ROTATE_SECONDS = 30.0
 
 POMO_FOCUS = 25 * 60
 POMO_BREAK = 5 * 60
 
 
+def profile_path(name):
+    return os.path.join(CONFIG_DIR, "profiles", f"{name}.yaml")
+
+
 def load_profile(name):
-    path = os.path.join(CONFIG_DIR, "profiles", f"{name}.yaml")
+    path = profile_path(name)
     with open(path) as f:
         profile = yaml.safe_load(f)
     profile["_name"] = name
@@ -41,7 +51,7 @@ def saved_profile_name():
     try:
         with open(os.path.join(STATE_DIR, "ragnaros", "profile")) as f:
             name = f.read().strip()
-        if name and os.path.exists(os.path.join(CONFIG_DIR, "profiles", f"{name}.yaml")):
+        if name and os.path.exists(profile_path(name)):
             return name
     except OSError:
         pass
@@ -55,6 +65,34 @@ def save_profile_name(name):
             f.write(name)
     except OSError:
         pass
+
+
+def validate_profile(profile, config_dir):
+    """Return a list of human-readable problems with a profile dict."""
+    issues = []
+    assets = os.path.join(config_dir, "assets")
+
+    def asset_exists(rel):
+        return os.path.exists(os.path.join(assets, rel))
+
+    for key, spec in (profile.get("keys") or {}).items():
+        where = f"{profile.get('_name', '?')}: keys.{key}"
+        try:
+            k = int(key)
+        except (TypeError, ValueError):
+            issues.append(f"{where}: key index is not an integer")
+            continue
+        if not 0 <= k <= 9:
+            issues.append(f"{where}: key index outside 0-9")
+        if not (spec.get("action") or spec.get("profile")):
+            issues.append(f"{where}: no action or profile")
+        icon = spec.get("icon")
+        if icon and not asset_exists(icon):
+            issues.append(f"{where}: missing asset {icon}")
+    for gif in (profile.get("strip") or {}).get("segments") or []:
+        if not asset_exists(gif):
+            issues.append(f"{profile.get('_name', '?')}: strip missing asset {gif}")
+    return issues
 
 
 def run_action(action):
@@ -84,7 +122,6 @@ class Deck:
         self.profile = load_profile(saved_profile_name())
         self.last_activity = time.monotonic()
         self.idle_playing = False
-        self.gif_iter = None
         self.gif_next = 0.0
         self.gif_index = 0
         self.key_anims = {}
@@ -102,12 +139,27 @@ class Deck:
         self.obs_next_try = 0.0
         self.obs_warn_next = 0.0
         self.keepalive_next = 0.0
+        self.overlay_until = 0.0
+        self.seg_rotate_next = 0.0
+        self._art_url = None
+        self._art_img = None
+        self._profile_mtime = self._mtime()
 
     def asset(self, rel):
         return os.path.join(CONFIG_DIR, "assets", rel)
 
+    def _mtime(self):
+        try:
+            return os.path.getmtime(profile_path(self.profile["_name"]))
+        except (KeyError, OSError):
+            return None
+
     def apply_profile(self):
         self.key_anims = {}
+        self.overlay_until = 0.0
+        self._profile_mtime = self._mtime()
+        for issue in validate_profile(self.profile, CONFIG_DIR):
+            print(f"ragnaros: profile issue: {issue}", file=sys.stderr)
         keys = self.profile.get("keys") or {}
         for key, spec in keys.items():
             icon = spec.get("icon")
@@ -115,7 +167,8 @@ class Deck:
                 continue
             path = self.asset(icon)
             if path.endswith(".gif"):
-                frames = list(renderer.gif_frames(path, protocol.KEY_LCD, protocol.ROTATION))
+                frames = [(renderer.to_jpeg(f), d)
+                          for f, d in renderer.gif_frames(path, protocol.KEY_LCD, protocol.ROTATION)]
                 if frames:
                     self.key_anims[int(key)] = [frames, 0, 0.0]
             else:
@@ -143,6 +196,19 @@ class Deck:
         self.profile = load_profile(name)
         save_profile_name(name)
         self.apply_profile()
+
+    def maybe_reload_profile(self):
+        m = self._mtime()
+        if m is None or self._profile_mtime is None or m == self._profile_mtime:
+            return
+        print(f"ragnaros: {self.profile.get('_name')}.yaml changed, hot-reloading",
+              file=sys.stderr)
+        try:
+            self.profile = load_profile(self.profile["_name"])
+            self.apply_profile()
+        except Exception as error:
+            print(f"ragnaros: hot-reload failed, keeping previous profile: {error}",
+                  file=sys.stderr)
 
     def log_usage(self, event, action):
         try:
@@ -190,6 +256,11 @@ class Deck:
                 action = rotate.get("cw" if value > 0 else "ccw")
                 self.log_usage(event, action)
                 run_action(action)
+                if isinstance(action, str):
+                    if "set-volume" in action and "@DEFAULT_AUDIO_SINK@" in action:
+                        self.show_overlay("volume")
+                    elif "brightnessctl set" in action:
+                        self.show_overlay("brightness")
         elif kind == "knob_press":
             spec = (self.profile.get("knobs") or {}).get(str(idx)) or {}
             self.log_usage(event, spec.get("press"))
@@ -199,13 +270,10 @@ class Deck:
 
     def push_strip_frame(self, frame):
         w, h = protocol.STRIP_LCD
-        parts = []
         for seg in range(4):
-            parts.append(renderer.to_jpeg(frame.crop((seg * w, 0, (seg + 1) * w, h))))
-        for _ in range(2):
-            for seg, data in enumerate(parts):
-                self.dev.send_image(seg, data, strip=True)
-                self.dev.flush()
+            data = renderer.to_jpeg(frame.crop((seg * w, 0, (seg + 1) * w, h)))
+            self.dev.send_image(seg, data, strip=True)
+            self.dev.flush()  # strip segments only display when flushed per image
 
     def idle_gifs(self):
         gifs = (self.profile.get("strip") or {}).get("gif", "gifs/nanami.gif")
@@ -216,6 +284,8 @@ class Deck:
         return segs[:4] if segs else None
 
     def idle_tick(self, now):
+        if now < self.overlay_until:
+            return
         if self.player:
             # music is playing: show now-playing on the strip instead of GIFs
             if now >= self.np_next:
@@ -232,23 +302,36 @@ class Deck:
                     path = self.asset(gif)
                     if not os.path.exists(path):
                         return
-                    frames = list(renderer.gif_frames(path, protocol.STRIP_LCD, protocol.ROTATION))
+                    # pre-encode every frame once; idle playback then costs no CPU
+                    frames = [(renderer.to_jpeg(f), d)
+                              for f, d in renderer.gif_frames(
+                                  path, protocol.STRIP_LCD, protocol.ROTATION)]
                     if not frames:
                         return
                     self.seg_loops.append([frames, 0])
+                self.seg_rotate_next = now + SEGMENT_ROTATE_SECONDS
             else:
                 gifs = self.idle_gifs()
                 path = self.asset(gifs[self.gif_index % len(gifs)])
                 self.gif_index += 1
                 if not os.path.exists(path):
                     return
-                self.wide_loop = [list(renderer.gif_frames(path, self.STRIP_FULL, protocol.ROTATION)), 0]
+                w, h = protocol.STRIP_LCD
+                frames = []
+                for f, d in renderer.gif_frames(path, self.STRIP_FULL, protocol.ROTATION):
+                    parts = tuple(renderer.to_jpeg(f.crop((seg * w, 0, (seg + 1) * w, h)))
+                                  for seg in range(4))
+                    frames.append((parts, d))
+                self.wide_loop = [frames, 0]
                 if not self.wide_loop[0]:
                     return
             self.idle_playing = True
             self.gif_next = 0.0
         if now >= self.gif_next:
             if segments:
+                if len(self.seg_loops) > 1 and now >= self.seg_rotate_next:
+                    self.seg_loops.append(self.seg_loops.pop(0))
+                    self.seg_rotate_next = now + SEGMENT_ROTATE_SECONDS
                 delay = self.push_segment_frames()
             else:
                 delay = self.push_wide_frame()
@@ -256,26 +339,21 @@ class Deck:
 
     def push_segment_frames(self):
         delay = 0.1
-        jpeg = [None] * len(self.seg_loops)
         for seg, loop in enumerate(self.seg_loops):
             frames, idx = loop
-            frame, delay = frames[idx]
-            jpeg[seg] = renderer.to_jpeg(frame)
+            data, delay = frames[idx]
             loop[1] = (idx + 1) % len(frames)
-        # write all segments, twice each, with a single flush at the end of each
-        # repetition so the device never has a gap to fall back to its
-        # default Reddragon logo on the strip LCD.
-        for _ in range(2):
-            for seg, data in enumerate(jpeg):
-                self.dev.send_image(seg, data, strip=True)
-                self.dev.flush()
+            self.dev.send_image(seg, data, strip=True)
+            self.dev.flush()
         return delay
 
     def push_wide_frame(self):
         frames, idx = self.wide_loop
-        frame, delay = frames[idx]
+        parts, delay = frames[idx]
         self.wide_loop[1] = (idx + 1) % len(frames)
-        self.push_strip_frame(frame)
+        for seg, data in enumerate(parts):
+            self.dev.send_image(seg, data, strip=True)
+            self.dev.flush()
         return delay
 
     def key_anim_tick(self, now):
@@ -285,13 +363,35 @@ class Deck:
         for key, anim in self.key_anims.items():
             frames, idx, next_t = anim
             if now >= next_t:
-                frame, delay = frames[idx]
-                self.dev.send_image(key, renderer.to_jpeg(frame))
+                data, delay = frames[idx]
+                self.dev.send_image(key, data)
                 anim[1] = (idx + 1) % len(frames)
                 anim[2] = now + delay
                 sent = True
         if sent:
             self.dev.flush()
+
+    # -- knob feedback overlay ----------------------------------------------
+    def show_overlay(self, kind):
+        if kind == "volume":
+            code, out = self._run(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"])
+            tokens = out.split("Volume:")[-1].split() if code == 0 else []
+            try:
+                frac = min(1.0, float(tokens[0]))
+            except (IndexError, ValueError):
+                return
+            label = "VOLUME"
+        else:
+            code, out = self._run(["brightnessctl", "-m"])
+            fields = out.split(",") if code == 0 else []
+            try:
+                frac = int(fields[4].rstrip("%")) / 100.0
+            except (IndexError, ValueError):
+                return
+            label = "BRIGHTNESS"
+        frame = renderer.overlay_strip(label, frac, self.STRIP_FULL)
+        self.push_strip_frame(frame.rotate(protocol.ROTATION))
+        self.overlay_until = time.monotonic() + OVERLAY_SECONDS
 
     # -- dynamic state: mic, player, obs ------------------------------------
     def _run(self, cmd, timeout=1.0):
@@ -322,37 +422,57 @@ class Deck:
                               renderer.load_icon(path, protocol.KEY_LCD, protocol.ROTATION))
 
     def poll_player(self):
-        try:
-            # ignore browser-backed "playing" tabs (autoplay, unmuted ads)
-            # that aren't real music sessions
-            code, out = self._run(["playerctl", "-l"], timeout=1.0)
-            if code != 0:
-                return None
-            players = [p for p in out.splitlines()
-                       if not (p.startswith(("chromium.", "brave.", "firefox.instance"))
-                              or ".instance" in p)]
-            if not players:
-                return None
-            player = players[0]
-            code, out = self._run(["playerctl", "-p", player, "status"])
-            if code != 0 or out.strip() != "Playing":
-                return None
-            code, out = self._run([
-                "playerctl", "-p", player, "metadata", "--format",
-                "{{title}}\t{{artist}}\t{{position}}\t{{mpris:length}}"])
-            if code != 0:
-                return None
-            title, artist, pos, length = (out.split("\t") + ["", "", "0", "0"])[:4]
-            try:
-                position, secs = float(pos), float(length) / 1_000_000
-            except ValueError:
-                return None
-            if not title.strip():
-                return None
-            return {"title": title, "artist": artist,
-                    "position": position, "length": secs, "ts": time.monotonic()}
-        except subprocess.SubprocessError:
+        code, out = self._run([
+            "playerctl", "--all-players", "metadata", "--format",
+            "{{playerName}}\t{{status}}\t{{title}}\t{{artist}}"
+            "\t{{position}}\t{{mpris:length}}\t{{mpris:artUrl}}"], timeout=1.5)
+        if code != 0:
             return None
+        for line in out.splitlines():
+            parts = (line.split("\t") + [""] * 7)[:7]
+            name, status, title, artist, pos, length, art = parts
+            # ignore browser-backed "playing" tabs (autoplay, unmuted ads)
+            if not name or ".instance" in name or name.startswith(
+                    ("chromium.", "brave.", "firefox.")):
+                continue
+            if status != "Playing":
+                continue
+            try:
+                position, secs = float(pos or 0), float(length or 0) / 1_000_000
+            except ValueError:
+                continue
+            if not title.strip():
+                continue
+            return {"title": title, "artist": artist, "position": position,
+                    "length": secs, "art": art, "ts": time.monotonic()}
+        return None
+
+    def _load_art(self, url):
+        if not url:
+            return None
+        if url == self._art_url:
+            return self._art_img
+        self._art_url = url
+        self._art_img = None
+        try:
+            if url.startswith("file://"):
+                path = urllib.parse.unquote(url[7:])
+            elif url.startswith(("http://", "https://")):
+                cache_dir = os.path.join(STATE_DIR, "ragnaros", "art")
+                os.makedirs(cache_dir, exist_ok=True)
+                path = os.path.join(
+                    cache_dir, hashlib.sha1(url.encode()).hexdigest())
+                if not os.path.exists(path):
+                    urllib.request.urlretrieve(url, path)
+            else:
+                return None
+            if path and os.path.exists(path):
+                with Image.open(path) as img:
+                    self._art_img = img.copy()
+        except Exception as error:
+            print(f"ragnaros: album art load failed: {error}", file=sys.stderr)
+            self._art_img = None
+        return self._art_img
 
     def repaint_obs(self):
         if not self.obs_keys:
@@ -419,6 +539,7 @@ class Deck:
         if now < self.state_next:
             return
         self.state_next = now + STATE_POLL
+        self.maybe_reload_profile()
         try:
             code, out = self._run(["wpctl", "get-volume", "@DEFAULT_AUDIO_SOURCE@"])
             muted = code == 0 and "[MUTED]" in out
@@ -496,9 +617,10 @@ class Deck:
     def push_now_playing(self, now):
         player = self.player
         elapsed = player["position"] + (now - player["ts"])
+        art = self._load_art(player.get("art"))
         frame = renderer.now_playing_strip(
             player["title"], player["artist"], min(elapsed, player["length"] or elapsed),
-            player["length"], self.STRIP_FULL)
+            player["length"], self.STRIP_FULL, art)
         self.push_strip_frame(frame.rotate(protocol.ROTATION))
 
     def reconnect(self):

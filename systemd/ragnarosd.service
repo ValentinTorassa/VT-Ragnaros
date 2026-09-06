@@ -1,6 +1,11 @@
 [Unit]
 Description=Ragnaros stream deck daemon
 After=graphical-session.target
+# a broken install (dangling ~/.config symlinks) must skip, not crash-loop:
+# 7k+ empty restarts were logged over 5 days before this guard existed
+ConditionPathExists=%h/.config/ragnaros/daemon/ragnarosd.py
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 ExecStart=%h/.config/ragnaros/daemon/ragnarosd.py

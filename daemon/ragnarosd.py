@@ -115,10 +115,8 @@ def run_action(action):
 
 class Deck:
     def __init__(self):
-        try:
-            self.dev = protocol.Ragnaros()
-        except RuntimeError as error:
-            sys.exit(f"Ragnaros unavailable: {error}")
+        self.dev = None
+        self._wait_for_device()
         self.profile = load_profile(saved_profile_name())
         self.last_activity = time.monotonic()
         self.idle_playing = False
@@ -147,6 +145,24 @@ class Deck:
 
     def asset(self, rel):
         return os.path.join(CONFIG_DIR, "assets", rel)
+
+    def _wait_for_device(self):
+        """Block until the deck can be opened; recovers automatically on replug."""
+        announced = False
+        while True:
+            try:
+                self.dev = protocol.Ragnaros()
+                if announced:
+                    print("ragnaros: device attached, resuming", file=sys.stderr)
+                return
+            except RuntimeError as error:
+                if "libusb" in str(error):
+                    sys.exit(f"Ragnaros unavailable: {error}")
+                if not announced:
+                    print(f"ragnaros: {error}; waiting for the device to appear",
+                          file=sys.stderr)
+                    announced = True
+                time.sleep(1)
 
     def _mtime(self):
         try:
@@ -629,12 +645,7 @@ class Deck:
             self.dev.close()
         except Exception:
             pass
-        while True:
-            try:
-                self.dev = protocol.Ragnaros()
-                break
-            except RuntimeError:
-                time.sleep(1)
+        self._wait_for_device()
         self.dev.initialize()
         self.apply_profile()
         self.mic_muted = None  # force state repaints after reattach

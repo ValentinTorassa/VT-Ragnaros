@@ -68,6 +68,18 @@ doctor() {
     bad "python deps missing - run: pip install --user -r requirements.txt"
   fi
 
+  echo " reset helper:"
+  if sudo -n -l "$REPO_DIR/tools/reset_deck.sh" &>/dev/null; then
+    ok "passwordless ragnaros-reset"
+  else
+    bad "sudoers rule missing - re-run: $0"
+  fi
+  if [[ -x "$HOME/.local/bin/ragnaros-reset" ]]; then
+    ok "~/.local/bin/ragnaros-reset"
+  else
+    bad "~/.local/bin/ragnaros-reset missing - re-run: $0"
+  fi
+
   if (( FAILED )); then
     echo "result: FAIL (re-run ./install.sh to repair symlinks and units)"
     exit 1
@@ -93,6 +105,14 @@ if command -v update-initramfs >/dev/null 2>&1; then
 fi
 sudo udevadm control --reload-rules
 sudo udevadm trigger
+
+# software replug helper: passwordless sudo + PATH symlink
+chmod +x "$REPO_DIR/tools/reset_deck.sh"
+echo "$(id -un) ALL=(root) NOPASSWD: $REPO_DIR/tools/reset_deck.sh" |
+  sudo tee /etc/sudoers.d/ragnaros-reset >/dev/null
+sudo chmod 0440 /etc/sudoers.d/ragnaros-reset
+mkdir -p "$HOME/.local/bin"
+ln -sfn "$REPO_DIR/tools/reset_deck.sh" "$HOME/.local/bin/ragnaros-reset"
 
 mkdir -p "$SYSTEMD_DIR"
 cp "$REPO_DIR/systemd/ragnarosd.service" "$SYSTEMD_DIR/"

@@ -1,5 +1,6 @@
 import ctypes
 import ctypes.util
+import time
 
 from inputmap import parse_input
 
@@ -216,6 +217,18 @@ class Ragnaros:
     def sleep(self):
         self.initialize()
         self.command(0x48, 0x41, 0x4E)
+
+    def reset_display(self):
+        """Sleep the display pipeline and wake it fresh.
+
+        Recovers panels hung to the point of showing nothing while USB
+        still ACKs every write (observed after firmware parser desyncs).
+        """
+        self.sleep()
+        time.sleep(2)
+        self._initialized = False
+        self.initialize()
+        self.set_brightness(100)
 
     def keep_alive(self):
         self.initialize()

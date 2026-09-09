@@ -30,6 +30,8 @@ IDLE_SECONDS = float(os.environ.get("RAGNAROS_IDLE_SECONDS", "10"))
 STATE_POLL = 2.0
 OVERLAY_SECONDS = 1.5
 SEGMENT_ROTATE_SECONDS = 30.0
+STRIP_MIN_FRAME_SECONDS = 1.0
+STRIP_JPEG_QUALITY = 80
 
 POMO_FOCUS = 25 * 60
 POMO_BREAK = 5 * 60
@@ -117,6 +119,7 @@ class Deck:
     def __init__(self):
         self.dev = None
         self._wait_for_device()
+        self.dev.reset_display()  # wake hung panels before first paint
         self.profile = load_profile(saved_profile_name())
         self.last_activity = time.monotonic()
         self.idle_playing = False
@@ -156,7 +159,7 @@ class Deck:
                     print("ragnaros: device attached, resuming", file=sys.stderr)
                 return
             except RuntimeError as error:
-                if "libusb" in str(error):
+                if "libusb-1.0 is required" in str(error):
                     sys.exit(f"Ragnaros unavailable: {error}")
                 if not announced:
                     print(f"ragnaros: {error}; waiting for the device to appear",
@@ -190,7 +193,7 @@ class Deck:
             else:
                 img = renderer.load_icon(path, protocol.KEY_LCD, protocol.ROTATION)
                 self.dev.send_image(int(key), renderer.to_jpeg(img))
-        self.dev.flush()
+                self.dev.flush()
         self.mic_key = next(
             (int(k) for k, spec in keys.items()
              if isinstance(spec.get("action"), str)
@@ -287,7 +290,8 @@ class Deck:
     def push_strip_frame(self, frame):
         w, h = protocol.STRIP_LCD
         for seg in range(4):
-            data = renderer.to_jpeg(frame.crop((seg * w, 0, (seg + 1) * w, h)))
+            data = renderer.to_jpeg(
+                frame.crop((seg * w, 0, (seg + 1) * w, h)), quality=STRIP_JPEG_QUALITY)
             self.dev.send_image(seg, data, strip=True)
             self.dev.flush()  # strip segments only display when flushed per image
 
@@ -319,12 +323,13 @@ class Deck:
                     if not os.path.exists(path):
                         return
                     # pre-encode every frame once; idle playback then costs no CPU
-                    frames = [(renderer.to_jpeg(f), d)
+                    frames = [(renderer.to_jpeg(f, quality=STRIP_JPEG_QUALITY), d)
                               for f, d in renderer.gif_frames(
                                   path, protocol.STRIP_LCD, protocol.ROTATION)]
                     if not frames:
                         return
                     self.seg_loops.append([frames, 0])
+                self.seg_segment = 0
                 self.seg_rotate_next = now + SEGMENT_ROTATE_SECONDS
             else:
                 gifs = self.idle_gifs()
@@ -335,10 +340,12 @@ class Deck:
                 w, h = protocol.STRIP_LCD
                 frames = []
                 for f, d in renderer.gif_frames(path, self.STRIP_FULL, protocol.ROTATION):
-                    parts = tuple(renderer.to_jpeg(f.crop((seg * w, 0, (seg + 1) * w, h)))
+                    parts = tuple(renderer.to_jpeg(
+                        f.crop((seg * w, 0, (seg + 1) * w, h)), quality=STRIP_JPEG_QUALITY)
                                   for seg in range(4))
                     frames.append((parts, d))
                 self.wide_loop = [frames, 0]
+                self.wide_segment = 0
                 if not self.wide_loop[0]:
                     return
             self.idle_playing = True
@@ -351,26 +358,30 @@ class Deck:
                 delay = self.push_segment_frames()
             else:
                 delay = self.push_wide_frame()
-            self.gif_next = now + delay
+            # A strip frame can contain dozens of USB reports; schedule from
+            # the completed transfer so a slow firmware is never flooded.
+            self.gif_next = time.monotonic() + delay
 
     def push_segment_frames(self):
-        delay = 0.1
-        for seg, loop in enumerate(self.seg_loops):
-            frames, idx = loop
-            data, delay = frames[idx]
-            loop[1] = (idx + 1) % len(frames)
-            self.dev.send_image(seg, data, strip=True)
-            self.dev.flush()
-        return delay
+        seg = self.seg_segment
+        frames, idx = self.seg_loops[seg]
+        data, delay = frames[idx]
+        self.seg_loops[seg][1] = (idx + 1) % len(frames)
+        self.dev.send_image(seg, data, strip=True)
+        self.dev.flush()
+        self.seg_segment = (seg + 1) % len(self.seg_loops)
+        return max(delay, STRIP_MIN_FRAME_SECONDS)
 
     def push_wide_frame(self):
         frames, idx = self.wide_loop
         parts, delay = frames[idx]
-        self.wide_loop[1] = (idx + 1) % len(frames)
-        for seg, data in enumerate(parts):
-            self.dev.send_image(seg, data, strip=True)
-            self.dev.flush()
-        return delay
+        seg = self.wide_segment
+        self.dev.send_image(seg, parts[seg], strip=True)
+        self.dev.flush()
+        self.wide_segment = (seg + 1) % len(parts)
+        if self.wide_segment == 0:
+            self.wide_loop[1] = (idx + 1) % len(frames)
+        return max(delay, STRIP_MIN_FRAME_SECONDS)
 
     def key_anim_tick(self, now):
         if self.idle_playing:
@@ -646,7 +657,7 @@ class Deck:
         except Exception:
             pass
         self._wait_for_device()
-        self.dev.initialize()
+        self.dev.reset_display()
         self.apply_profile()
         self.mic_muted = None  # force state repaints after reattach
         self.obs_state = None

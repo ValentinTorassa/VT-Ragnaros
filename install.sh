@@ -69,11 +69,6 @@ doctor() {
   fi
 
   echo " reset helper:"
-  if sudo -n -l "$REPO_DIR/tools/reset_deck.sh" &>/dev/null; then
-    ok "passwordless ragnaros-reset"
-  else
-    bad "sudoers rule missing - re-run: $0"
-  fi
   if [[ -x "$HOME/.local/bin/ragnaros-reset" ]]; then
     ok "~/.local/bin/ragnaros-reset"
   else
@@ -106,11 +101,9 @@ fi
 sudo udevadm control --reload-rules
 sudo udevadm trigger
 
-# software replug helper: passwordless sudo + PATH symlink
+# display-recovery helper
 chmod +x "$REPO_DIR/tools/reset_deck.sh"
-echo "$(id -un) ALL=(root) NOPASSWD: $REPO_DIR/tools/reset_deck.sh" |
-  sudo tee /etc/sudoers.d/ragnaros-reset >/dev/null
-sudo chmod 0440 /etc/sudoers.d/ragnaros-reset
+sudo rm -f /etc/sudoers.d/ragnaros-reset
 mkdir -p "$HOME/.local/bin"
 ln -sfn "$REPO_DIR/tools/reset_deck.sh" "$HOME/.local/bin/ragnaros-reset"
 

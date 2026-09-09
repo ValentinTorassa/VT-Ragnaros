@@ -29,6 +29,20 @@ def test_keep_alive_is_connect():
     assert dev.writes[-1] == b"\x00CRT\x00\x00CONNECT"
 
 
+def test_reset_display_sleeps_wakes_and_restores_brightness(monkeypatch):
+    dev = make_dev()
+    monkeypatch.setattr(protocol.time, "sleep", lambda _: None)
+    dev.reset_display()
+    assert [write[6:] for write in dev.writes] == [
+        b"DIS",
+        b"LIG\x00\x00\x00\x00",
+        b"HAN",
+        b"DIS",
+        b"LIG\x00\x00\x00\x00",
+        b"LIG\x00\x00\x64",
+    ]
+
+
 def test_flush_is_stp():
     dev = make_dev()
     dev.flush()

@@ -5,6 +5,9 @@ class FakeDev:
     def initialize(self):
         pass
 
+    def reset_display(self):
+        pass
+
     def close(self):
         pass
 
@@ -24,7 +27,6 @@ def test_wait_for_device_retries_until_present(monkeypatch):
     assert calls["n"] == 3
     assert isinstance(deck.dev, FakeDev)
     deck.dev.close()
-
 
 def test_wait_for_device_exits_without_libusb(monkeypatch):
     def broken():
@@ -53,3 +55,18 @@ def test_reconnect_uses_wait_loop(monkeypatch):
     assert isinstance(deck.dev, FakeDev)
     assert deck.mic_muted is None
     assert deck.obs_state is None
+
+
+def test_strip_animation_has_a_safe_frame_floor():
+    class StripDev:
+        def send_image(self, *args, **kwargs):
+            pass
+
+        def flush(self):
+            pass
+
+    deck = ragnarosd.Deck.__new__(ragnarosd.Deck)
+    deck.dev = StripDev()
+    deck.seg_loops = [[[(b"frame", 0.04)], 0] for _ in range(4)]
+    deck.seg_segment = 0
+    assert deck.push_segment_frames() == ragnarosd.STRIP_MIN_FRAME_SECONDS

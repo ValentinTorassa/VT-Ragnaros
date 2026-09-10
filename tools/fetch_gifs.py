@@ -51,7 +51,7 @@ def to_segment(src_path, dst_path, max_frames=40):
     n = getattr(img, "n_frames", 1)
     if n < 8:
         raise ValueError("too few frames")
-    step = max(1, n // max_frames)
+    step = max(1, (n + max_frames - 1) // max_frames)
     frames = []
     for i in range(0, n, step):
         img.seek(i)

@@ -30,7 +30,6 @@ IDLE_SECONDS = float(os.environ.get("RAGNAROS_IDLE_SECONDS", "10"))
 STATE_POLL = 2.0
 OVERLAY_SECONDS = 1.5
 SEGMENT_ROTATE_SECONDS = 30.0
-STRIP_MIN_FRAME_SECONDS = 1.0
 STRIP_JPEG_QUALITY = 80
 
 POMO_FOCUS = 25 * 60
@@ -119,7 +118,6 @@ class Deck:
     def __init__(self):
         self.dev = None
         self._wait_for_device()
-        self.dev.reset_display()  # wake hung panels before first paint
         self.profile = load_profile(saved_profile_name())
         self.last_activity = time.monotonic()
         self.idle_playing = False
@@ -329,7 +327,6 @@ class Deck:
                     if not frames:
                         return
                     self.seg_loops.append([frames, 0])
-                self.seg_segment = 0
                 self.seg_rotate_next = now + SEGMENT_ROTATE_SECONDS
             else:
                 gifs = self.idle_gifs()
@@ -345,7 +342,6 @@ class Deck:
                                   for seg in range(4))
                     frames.append((parts, d))
                 self.wide_loop = [frames, 0]
-                self.wide_segment = 0
                 if not self.wide_loop[0]:
                     return
             self.idle_playing = True
@@ -358,30 +354,26 @@ class Deck:
                 delay = self.push_segment_frames()
             else:
                 delay = self.push_wide_frame()
-            # A strip frame can contain dozens of USB reports; schedule from
-            # the completed transfer so a slow firmware is never flooded.
-            self.gif_next = time.monotonic() + delay
+            self.gif_next = now + delay
 
     def push_segment_frames(self):
-        seg = self.seg_segment
-        frames, idx = self.seg_loops[seg]
-        data, delay = frames[idx]
-        self.seg_loops[seg][1] = (idx + 1) % len(frames)
-        self.dev.send_image(seg, data, strip=True)
-        self.dev.flush()
-        self.seg_segment = (seg + 1) % len(self.seg_loops)
-        return max(delay, STRIP_MIN_FRAME_SECONDS)
+        delay = 0.1
+        for seg, loop in enumerate(self.seg_loops):
+            frames, idx = loop
+            data, delay = frames[idx]
+            loop[1] = (idx + 1) % len(frames)
+            self.dev.send_image(seg, data, strip=True)
+            self.dev.flush()
+        return delay
 
     def push_wide_frame(self):
         frames, idx = self.wide_loop
         parts, delay = frames[idx]
-        seg = self.wide_segment
-        self.dev.send_image(seg, parts[seg], strip=True)
-        self.dev.flush()
-        self.wide_segment = (seg + 1) % len(parts)
-        if self.wide_segment == 0:
-            self.wide_loop[1] = (idx + 1) % len(frames)
-        return max(delay, STRIP_MIN_FRAME_SECONDS)
+        self.wide_loop[1] = (idx + 1) % len(frames)
+        for seg, data in enumerate(parts):
+            self.dev.send_image(seg, data, strip=True)
+            self.dev.flush()
+        return delay
 
     def key_anim_tick(self, now):
         if self.idle_playing:
@@ -657,7 +649,6 @@ class Deck:
         except Exception:
             pass
         self._wait_for_device()
-        self.dev.reset_display()
         self.apply_profile()
         self.mic_muted = None  # force state repaints after reattach
         self.obs_state = None

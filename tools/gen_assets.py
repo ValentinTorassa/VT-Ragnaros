@@ -54,6 +54,22 @@ ICONS = {
     "lazydocker":   (0xF1B3, "DOCK",   ( 90, 200, 250)),
     "aws":          (0xF0C2, "AWS",    (250, 190,  60)),
     "pomodoro":     (0xF017, "POMO",   (250, 170,  60)),
+    # media layer + dashboard
+    "media_prev":   (0xF048, "PREV",   (150, 175, 250)),
+    "media_play":   (0xF04B, "PLAY",   (120, 230, 170)),
+    "media_pause":  (0xF04C, "PAUSE",  (250, 200,  90)),
+    "media_next":   (0xF051, "NEXT",   (150, 175, 250)),
+    "media_vol":    (0xF028, "VOL",    (120, 200, 250)),
+    "dashboard":    (0xF625, "STATS",  (120, 200, 250)),
+    "layers":       (0xF5FD, "LAYER",  (200, 150, 250)),
+    # system profile
+    "sys_cpu":      (0xF2DB, "CPU",    (120, 230, 170)),
+    "sys_ram":      (0xF538, "RAM",    (140, 190, 250)),
+    "sys_net":      (0xF6FF, "NET",    (120, 200, 250)),
+    "sys_disk":     (0xF0A0, "DISK",   (250, 190,  90)),
+    "sys_temp":     (0xF769, "TEMP",   (250, 130, 110)),
+    "sys_monitor":  (0xF201, "MONITOR",(160, 200, 250)),
+    "sys_top":      (0xF233, "HTOP",   (140, 240, 190)),
 }
 
 # state-aware tiles: name -> (glyph, caption, accent, glyph fill)

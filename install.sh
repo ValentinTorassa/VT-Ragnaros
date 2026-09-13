@@ -75,6 +75,23 @@ doctor() {
     bad "~/.local/bin/ragnaros-reset missing - re-run: $0"
   fi
 
+  echo " control:"
+  if [[ -x "$HOME/.local/bin/ragnarosctl" ]]; then
+    ok "~/.local/bin/ragnarosctl"
+  else
+    bad "~/.local/bin/ragnarosctl missing - re-run: $0"
+  fi
+  if [[ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/ragnaros.sock" ]]; then
+    ok "control socket live"
+  else
+    info "control socket absent (fine if the daemon is stopped)"
+  fi
+  if command -v dbus-monitor >/dev/null 2>&1; then
+    ok "dbus-monitor present (toasts + lock detection)"
+  else
+    bad "dbus-monitor missing - install dbus-bin for toasts and lock dimming"
+  fi
+
   if (( FAILED )); then
     echo "result: FAIL (re-run ./install.sh to repair symlinks and units)"
     exit 1
@@ -106,6 +123,10 @@ chmod +x "$REPO_DIR/tools/reset_deck.sh"
 sudo rm -f /etc/sudoers.d/ragnaros-reset
 mkdir -p "$HOME/.local/bin"
 ln -sfn "$REPO_DIR/tools/reset_deck.sh" "$HOME/.local/bin/ragnaros-reset"
+
+# control CLI
+chmod +x "$REPO_DIR/tools/ragnarosctl"
+ln -sfn "$REPO_DIR/tools/ragnarosctl" "$HOME/.local/bin/ragnarosctl"
 
 mkdir -p "$SYSTEMD_DIR"
 cp "$REPO_DIR/systemd/ragnarosd.service" "$SYSTEMD_DIR/"

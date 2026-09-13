@@ -65,3 +65,12 @@ def test_load_font_falls_back(path, monkeypatch):
     monkeypatch.setattr(renderer, "FONT_BOLD", "/nonexistent/font.ttf")
     font = renderer.load_font(path, 20)
     assert font is not None
+
+
+def test_alert_strip_keeps_the_panel_seams_clear():
+    img = renderer.alert_strip("claude", "Claude terminó",
+                               "VT-Ragnaros · listo para revisar", 184, STRIP_FULL)
+    for seam in (176, 352, 528):
+        for x in range(seam - 4, seam + 4):
+            column = [img.getpixel((x, y)) for y in range(124)]
+            assert set(column) == {(0, 0, 0)}, f"ink on the seam at x={x}"

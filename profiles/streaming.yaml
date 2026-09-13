@@ -5,6 +5,7 @@ strip:
     - gifs/segments/maki.gif
     - gifs/segments/toji.gif
     - gifs/segments/yuta.gif
+  dashboard: [clock, cpu, ram, temp]
 keys:
   "0":
     icon: icons/brave.png
@@ -51,8 +52,33 @@ knobs:
     rotate:
       cw: brightnessctl set 5%+
       ccw: brightnessctl set 5%-
+    press: layer:media
   "3":
     rotate:
       cw: playerctl next
       ccw: playerctl previous
     press: playerctl play-pause
+
+# a momentary media layer: hold-free toggle on knob 2, keys 5-8 fall through
+# to the profile underneath
+layers:
+  media:
+    keys:
+      "0":
+        icon: icons/media_prev.png
+        action: playerctl previous
+      "1":
+        icon: icons/media_play.png
+        action: playerctl play-pause
+      "2":
+        icon: icons/media_next.png
+        action: playerctl next
+      "3":
+        icon: icons/media_vol.png
+        action: wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
+      "4":
+        icon: icons/dashboard.png
+        action: dashboard
+      "9":
+        icon: icons/layers.png
+        layer_toggle: media

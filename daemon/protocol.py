@@ -203,6 +203,10 @@ class Ragnaros:
         if slot is None:
             raise ValueError(f"unknown {'strip segment' if strip else 'key'} {key}")
         size = len(image_data)
+        if size > 0xFFFF:
+            # the BAT header carries the length in two bytes; a larger
+            # payload would wrap and leave the firmware parser desynced
+            raise ValueError(f"image payload too large for the deck ({size} bytes)")
         self.command(0x42, 0x41, 0x54, 0x00, 0x00, size >> 8, size & 0xFF, slot + 1)
         for offset in range(0, size, PACKET_SIZE):
             chunk = image_data[offset : offset + PACKET_SIZE]

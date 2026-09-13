@@ -34,24 +34,6 @@ def to_jpeg(img, quality=90):
     return buf.getvalue()
 
 
-def compose_strip(base, text=None, font_size=20):
-    from PIL import ImageDraw
-
-    img = base.copy()
-    if text:
-        draw = ImageDraw.Draw(img)
-        draw.text((10, img.height - font_size - 8), text, fill=(255, 255, 255))
-    return img
-
-
-def blank(size, color=(0, 0, 0)):
-    return Image.new("RGB", size, color)
-
-
-def to_bytes(img):
-    return img.tobytes()
-
-
 def fit_text(draw, text, max_width, base_size, font_path=FONT_BOLD):
     size = base_size
     while size > 10:
@@ -181,6 +163,83 @@ def now_playing_strip(title, artist, position, length, size, art=None):
         d.text((x0 + (x1 - x0 - d.textlength(label, font=font)) / 2, h / 2 - 18),
                label, font=font, fill=(235, 238, 245))
     return img
+
+
+def alert_strip(app, summary, body, waited, size, pulse=False):
+    """A notice that stays up until it is acknowledged.
+
+    Same card grid as everything else; the last card counts how long it
+    has been waiting, which is the part you actually read from across
+    the room.
+    """
+    accent = (250, 210, 120) if pulse else (250, 170, 70)
+    if waited < 60:
+        waited_text, unit = f"{int(waited)}", "segundos"
+    elif waited < 3600:
+        waited_text, unit = f"{int(waited // 60)}m", "minutos esperando"
+    else:
+        waited_text, unit = f"{int(waited // 3600)}h", "horas esperando"
+    return cards_strip([
+        {"label": "", "value": (app or "aviso")[:14], "accent": accent, "sub": ""},
+        {"label": "", "value": summary or "", "sub": "", "lines": 3, "size": 24},
+        {"label": "", "value": body or "", "sub": "", "lines": 4, "size": 17,
+         "font": FONT, "accent": (185, 190, 205)},
+        {"label": "", "value": waited_text, "accent": accent, "sub": unit},
+    ], size)
+
+
+def cards_strip(cards, size):
+    """Four independent info cards: label on top, big value, optional bar, sub.
+
+    Same grid as now_playing_strip - nothing crosses a panel bezel.
+    """
+    w, h = size
+    cw = w // 4
+    pad = 12
+    img = Image.new("RGB", (w, h), (0, 0, 0))
+    d = ImageDraw.Draw(img)
+    for i, card in enumerate(list(cards)[:4]):
+        if not card:
+            continue
+        x = i * cw
+        inner = cw - 2 * pad
+        accent = card.get("accent") or (235, 238, 245)
+        label = str(card.get("label") or "")
+        if label:
+            font, lines = fit_block(d, label, (inner, 20), 15, FONT, max_lines=1)
+            draw_block(d, lines, font, (x + pad, 8, inner, 20), (125, 130, 148))
+        value = str(card.get("value") or "")
+        rows = int(card.get("lines", 1))
+        top, height = (32, 46) if rows == 1 else (16, 86)
+        font, lines = fit_block(d, value, (inner, height), int(card.get("size", 42)),
+                                card.get("font", FONT_BOLD), max_lines=rows)
+        draw_block(d, lines, font, (x + pad, top, inner, height), accent)
+        if card.get("bar") is not None:
+            frac = max(0.0, min(1.0, float(card["bar"])))
+            x0, x1 = x + pad + 6, x + cw - pad - 6
+            top, bot = h - 38, h - 30
+            d.rounded_rectangle((x0, top, x1, bot), radius=4, fill=(30, 32, 42))
+            filled = x0 + (x1 - x0) * frac
+            if filled >= x0 + 8:
+                d.rounded_rectangle((x0, top, filled, bot), radius=4, fill=accent)
+        sub = str(card.get("sub") or "")
+        if sub:
+            font, lines = fit_block(d, sub, (inner, 18), 13, FONT, max_lines=1)
+            draw_block(d, lines, font, (x + pad, h - 24, inner, 18), (140, 145, 160))
+    return img
+
+
+def toast_strip(app, summary, body, size, accent=(120, 200, 250)):
+    """A desktop notification on the card grid: app, summary, body, clock."""
+    import time as _time
+
+    return cards_strip([
+        {"label": "", "value": (app or "notice")[:14], "accent": accent, "sub": ""},
+        {"label": "", "value": summary or "", "sub": "", "lines": 3, "size": 24},
+        {"label": "", "value": body or "", "sub": "", "lines": 4, "size": 17,
+         "font": FONT, "accent": (185, 190, 205)},
+        {"label": _time.strftime("%a %d"), "value": _time.strftime("%H:%M"), "sub": ""},
+    ], size)
 
 
 def overlay_strip(label, frac, size):

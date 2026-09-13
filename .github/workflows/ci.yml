@@ -15,5 +15,5 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt -r requirements-dev.txt
       - run: pytest -q
-      - run: python3 -m py_compile daemon/ragnarosd.py daemon/protocol.py daemon/renderer.py daemon/inputmap.py
+      - run: python3 -m py_compile daemon/*.py tools/ragnarosctl tools/preview_strip.py tools/strip_order.py
       - run: bash -n install.sh

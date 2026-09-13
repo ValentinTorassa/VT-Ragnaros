@@ -1,42 +1,45 @@
-name: ai-tools
+name: system
+# this profile owns the strip: the dashboard stays up while it is active,
+# and keys 0-3 pick which four cards it shows
 strip:
+  pinned: dashboard
+  dashboard: [clock, cpu, ram, temp]
   segments:
     - gifs/segments/gojo.gif
     - gifs/segments/maki.gif
     - gifs/segments/toji.gif
     - gifs/segments/yuta.gif
-  dashboard: [clock, cpu, ram, net]
 keys:
   "0":
-    icon: icons/opencode.png
-    action: ghostty -e opencode
+    icon: icons/sys_cpu.png
+    action: dashboard:cpu,ram,temp,gpu
   "1":
-    icon: icons/claude.png
-    action: ghostty -e claude
+    icon: icons/sys_net.png
+    action: dashboard:net,cpu,ram,clock
   "2":
-    icon: icons/chatgpt.png
-    action: xdg-open https://chat.openai.com
+    icon: icons/sys_disk.png
+    action: dashboard:disk,ram,uptime,clock
   "3":
-    icon: icons/cursor.png
-    action: cursor
+    icon: icons/sys_temp.png
+    action: dashboard:temp,gpu,cpu,net
   "4":
-    icon: icons/zed.png
-    action: zed
+    icon: icons/sys_top.png
+    action: ghostty -e btop
   "5":
-    icon: icons/vscode.png
-    action: code
+    icon: icons/sys_monitor.png
+    action: gnome-system-monitor
   "6":
-    icon: icons/github.png
-    action: github-desktop
+    icon: icons/mic_mute.png
+    action: wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
   "7":
-    icon: icons/tmux.png
-    action: ghostty -e tmux attach
+    icon: icons/folder.png
+    action: baobab
   "8":
-    icon: icons/dbeaver.png
-    action: dbeaver-ce
+    icon: icons/lock.png
+    action: loginctl lock-session
   "9":
     icon: icons/switch_stream.png
-    profile: stream
+    profile: streaming
 knobs:
   "0":
     rotate:
@@ -59,8 +62,6 @@ knobs:
       ccw: playerctl previous
     press: playerctl play-pause
 
-# a momentary media layer: hold-free toggle on knob 2, keys 5-8 fall through
-# to the profile underneath
 layers:
   media:
     keys:

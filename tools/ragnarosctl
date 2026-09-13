@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+"""Drive a running ragnarosd from the shell.
+
+  ragnarosctl status                  what the deck is doing right now
+  ragnarosctl profile [name|next|prev|list]
+  ragnarosctl layer [name|base|list]
+  ragnarosctl dashboard [on|off|toggle]
+  ragnarosctl brightness [0-100]
+  ragnarosctl toast "Build passed" "12 tests, 4.2s" [--app=ci] [--seconds=6]
+  ragnarosctl key <0-9>               run a key's action without touching it
+  ragnarosctl alert "Claude terminó" "VT-Ragnaros" [--app=claude]
+  ragnarosctl alert --clear           (any key on the deck also clears it)
+  ragnarosctl watch [--grab]          stream every input as JSON; --grab
+                                      suppresses the profile's own actions
+  ragnarosctl reload | sleep | wake
+
+Add --json to print the raw reply.
+"""
+import json
+import os
+import socket
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "daemon"))
+
+import control
+
+
+def pretty(reply):
+    if not reply.get("ok"):
+        print(f"error: {reply.get('error', 'unknown error')}", file=sys.stderr)
+        return
+    fields = [(k, v) for k, v in reply.items() if k != "ok" and v not in (None, [], {})]
+    if not fields:
+        print("ok")
+        return
+    width = max(len(k) for k, _ in fields)
+    for key, value in fields:
+        if isinstance(value, (list, tuple)):
+            value = " ".join(str(v) for v in value)
+        elif isinstance(value, dict):
+            value = " ".join(f"{k}={v}" for k, v in value.items())
+        print(f"{key:<{width}}  {value}")
+
+
+def format_event(event):
+    import time as _time
+
+    head = f"{_time.strftime('%H:%M:%S')}  {event.pop('type', '?'):<12}"
+    return head + "  ".join(f"{k}={v}" for k, v in event.items() if v is not None)
+
+
+def watch(argv, as_json):
+    """Follow the deck's input stream until interrupted."""
+    try:
+        for event in control.stream(argv):
+            if event.get("watching"):
+                print(f"watching {event.get('profile')}"
+                      + (" (grabbed)" if event.get("grab") else ""), file=sys.stderr)
+                continue
+            print(json.dumps(event) if as_json else format_event(event), flush=True)
+    except KeyboardInterrupt:
+        return 0
+    except (FileNotFoundError, ConnectionRefusedError):
+        print("ragnarosd is not running (no control socket)", file=sys.stderr)
+        return 2
+    return 0
+
+
+def main(argv):
+    if not argv or argv[0] in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return 0
+    as_json = "--json" in argv
+    argv = [a for a in argv if a != "--json"]
+    if argv[0] == "watch":
+        return watch(argv, as_json)
+    try:
+        reply = control.request(argv)
+    except (FileNotFoundError, ConnectionRefusedError):
+        print("ragnarosd is not running (no control socket)", file=sys.stderr)
+        return 2
+    except (socket.timeout, OSError) as error:
+        print(f"cannot talk to ragnarosd: {error}", file=sys.stderr)
+        return 2
+    if as_json:
+        print(json.dumps(reply, indent=2))
+    else:
+        pretty(reply)
+    return 0 if reply.get("ok") else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

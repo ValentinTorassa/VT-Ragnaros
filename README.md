@@ -217,7 +217,7 @@ published on the same stream.
 - `tools/preview_strip.py` — renders the strip frames to a PNG with the bezels marked, to judge layout without the deck
 - `tools/strip_order.py` — paints 1 2 3 4 on the panels to confirm their physical order
 - `tools/claude_hook.py` — Claude Code Stop hook: raises a deck notice when a session finishes
-- `tools/probe_modes.py` — walks the firmware's undocumented MOD command so you can see what each mode does
+- `tools/probe_modes.py` — walks the firmware's undocumented MOD command, dumping the feature and input reports at each step. Findings so far: modes 0-9 change no reported state and never break input, and every feature report (0-3) and input report 1 return the same firmware string, `V3.SS_552.02.009` — a version identifier, not device state
 - `tools/sniff.py`, `handshake.py`, `probe*.py`, `wake.py`, `listen.py`, `paint*.py` — reverse-engineering and protocol discovery utilities
 
 ## Requirements

@@ -11,6 +11,10 @@ changed.
     python3 tools/probe_modes.py 3          # just mode 3, then restore
     systemctl --user start ragnarosd
 
+Besides the pattern, every step dumps the device's feature and input
+reports, so a mode that flips firmware state shows up in the diff even
+with nobody watching the panels.
+
 If the deck ends up wedged, ~/.local/bin/ragnaros-reset puts it back.
 """
 import io
@@ -74,6 +78,26 @@ def paint(deck, caption):
         deck.flush()
 
 
+def snapshot(deck):
+    """Feature + input reports, so state changes are visible without eyes."""
+    state = {}
+    for report in range(4):
+        try:
+            state[f"feature{report}"] = deck.get_feature_report(report, 32).hex(" ")
+        except RuntimeError as error:
+            state[f"feature{report}"] = f"error: {error}"
+    try:
+        state["input1"] = deck.get_input_report(1, 32).hex(" ")
+    except RuntimeError as error:
+        state["input1"] = f"error: {error}"
+    return state
+
+
+def diff(before, after):
+    return [f"    {key}: {before[key]}  ->  {after[key]}"
+            for key in after if before.get(key) != after[key]]
+
+
 def main():
     modes = [int(sys.argv[1])] if len(sys.argv) > 1 else list(range(10))
     deck = Ragnaros()
@@ -84,11 +108,25 @@ def main():
         print("pattern painted: keys 0-9 in colour, strip reading MODE PROBE.")
         print("note what changes at each step - layout, brightness, colours, input.\n")
         time.sleep(2)
+        baseline = snapshot(deck)
+        print("baseline reports:")
+        for key, value in baseline.items():
+            print(f"    {key}: {value}")
+        print()
+        previous = baseline
         for mode in modes:
             print(f"  -> set_mode({mode})   [CRT MOD {chr(0x30 + mode)!r}]", flush=True)
             deck.set_mode(mode)
             paint(deck, ["MODE", str(mode), "", ""])
             time.sleep(HOLD)
+            current = snapshot(deck)
+            changes = diff(previous, current)
+            print("\n".join(changes) if changes else "    (reports unchanged)")
+            # does the deck still take input after this mode?
+            event = deck.poll(200)
+            if event:
+                print(f"    unsolicited input: {event}")
+            previous = current
     finally:
         print("\nrestoring mode 0 and repainting")
         try:

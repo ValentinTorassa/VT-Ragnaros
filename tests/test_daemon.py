@@ -1,3 +1,5 @@
+import pytest
+
 import ragnarosd
 
 
@@ -55,3 +57,56 @@ def test_reconnect_uses_wait_loop(monkeypatch):
     assert isinstance(deck.dev, FakeDev)
     assert deck.mic_muted is None
     assert deck.obs_state is None
+
+
+def test_poll_player_converts_microseconds_to_seconds():
+    """playerctl reports position and mpris:length in microseconds."""
+    deck = ragnarosd.Deck.__new__(ragnarosd.Deck)
+    deck._run = lambda cmd, timeout=1.0: (
+        0, "spotify\tPlaying\tSong\tArtist\t27862750\t50150000\t")
+    player = deck.poll_player()
+    assert player["position"] == pytest.approx(27.86275)
+    assert player["length"] == pytest.approx(50.15)
+
+
+def test_poll_player_skips_non_playing_entries():
+    deck = ragnarosd.Deck.__new__(ragnarosd.Deck)
+    deck._run = lambda cmd, timeout=1.0: (0, "\n".join([
+        "firefox\tPaused\tTab\t\t0\t\t",
+        "spotify\tPlaying\tSong\tArtist\t1000000\t2000000\t",
+    ]))
+    player = deck.poll_player()
+    assert player["title"] == "Song"
+    assert player["position"] == pytest.approx(1.0)
+
+
+def test_push_strip_frame_keeps_segment_order():
+    """Slot 0 is the leftmost panel; each crop is rotated on its own."""
+    import io
+
+    from PIL import Image
+
+    quarters = [(220, 20, 20), (20, 200, 20), (20, 20, 220), (220, 200, 20)]
+    frame = Image.new("RGB", (704, 124))
+    for i, color in enumerate(quarters):
+        frame.paste(Image.new("RGB", (176, 124), color), (i * 176, 0))
+
+    sent = {}
+
+    class RecordingDev:
+        def send_image(self, seg, data, strip=False):
+            sent[seg] = data
+
+        def flush(self):
+            pass
+
+    deck = ragnarosd.Deck.__new__(ragnarosd.Deck)
+    deck.dev = RecordingDev()
+    deck.push_strip_frame(frame)
+
+    assert sorted(sent) == [0, 1, 2, 3]
+    for seg, color in enumerate(quarters):
+        panel = Image.open(io.BytesIO(sent[seg])).rotate(180)  # as the panel shows it
+        assert panel.size == (176, 124)
+        for channel, expected in zip(panel.getpixel((88, 62)), color):
+            assert abs(channel - expected) < 12

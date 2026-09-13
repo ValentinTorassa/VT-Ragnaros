@@ -286,10 +286,16 @@ class Deck:
     STRIP_FULL = (protocol.STRIP_LCD[0] * 4, protocol.STRIP_LCD[1])
 
     def push_strip_frame(self, frame):
+        """Split an upright 704x124 frame across the four strip panels.
+
+        Every panel is mounted upside down, so each crop is rotated on
+        its own: rotating the whole frame first would also reverse the
+        panel order, since slot 0 is the leftmost segment.
+        """
         w, h = protocol.STRIP_LCD
         for seg in range(4):
-            data = renderer.to_jpeg(
-                frame.crop((seg * w, 0, (seg + 1) * w, h)), quality=STRIP_JPEG_QUALITY)
+            part = frame.crop((seg * w, 0, (seg + 1) * w, h)).rotate(protocol.ROTATION)
+            data = renderer.to_jpeg(part, quality=STRIP_JPEG_QUALITY)
             self.dev.send_image(seg, data, strip=True)
             self.dev.flush()  # strip segments only display when flushed per image
 
@@ -336,9 +342,10 @@ class Deck:
                     return
                 w, h = protocol.STRIP_LCD
                 frames = []
-                for f, d in renderer.gif_frames(path, self.STRIP_FULL, protocol.ROTATION):
+                for f, d in renderer.gif_frames(path, self.STRIP_FULL):
                     parts = tuple(renderer.to_jpeg(
-                        f.crop((seg * w, 0, (seg + 1) * w, h)), quality=STRIP_JPEG_QUALITY)
+                        f.crop((seg * w, 0, (seg + 1) * w, h)).rotate(protocol.ROTATION),
+                        quality=STRIP_JPEG_QUALITY)
                                   for seg in range(4))
                     frames.append((parts, d))
                 self.wide_loop = [frames, 0]
@@ -409,7 +416,7 @@ class Deck:
                 return
             label = "BRIGHTNESS"
         frame = renderer.overlay_strip(label, frac, self.STRIP_FULL)
-        self.push_strip_frame(frame.rotate(protocol.ROTATION))
+        self.push_strip_frame(frame)
         self.overlay_until = time.monotonic() + OVERLAY_SECONDS
 
     # -- dynamic state: mic, player, obs ------------------------------------
@@ -457,7 +464,9 @@ class Deck:
             if status != "Playing":
                 continue
             try:
-                position, secs = float(pos or 0), float(length or 0) / 1_000_000
+                # playerctl reports both position and mpris:length in microseconds
+                position, secs = (float(pos or 0) / 1_000_000,
+                                  float(length or 0) / 1_000_000)
             except ValueError:
                 continue
             if not title.strip():
@@ -640,7 +649,7 @@ class Deck:
         frame = renderer.now_playing_strip(
             player["title"], player["artist"], min(elapsed, player["length"] or elapsed),
             player["length"], self.STRIP_FULL, art)
-        self.push_strip_frame(frame.rotate(protocol.ROTATION))
+        self.push_strip_frame(frame)
 
     def reconnect(self):
         print("ragnaros: device lost, waiting for reattach", file=sys.stderr)

@@ -62,59 +62,154 @@ def fit_text(draw, text, max_width, base_size, font_path=FONT_BOLD):
     return load_font(font_path, size)
 
 
-def now_playing_strip(title, artist, position, length, size, art=None):
-    """704x124 strip frame: title, artist, progress bar on pure black.
+def cover_crop(img, size):
+    """Scale to cover the box and center-crop: no squash, no black bands."""
+    w, h = size
+    scale = max(w / img.width, h / img.height)
+    scaled = img.resize((max(w, round(img.width * scale)),
+                         max(h, round(img.height * scale))), Image.LANCZOS)
+    x, y = (scaled.width - w) // 2, (scaled.height - h) // 2
+    return scaled.crop((x, y, x + w, y + h))
 
-    When art (a PIL image) is given it is shown as a square thumbnail on
-    the left and the text block shifts right.
+
+def wrap_text(draw, text, font, max_width):
+    """Word-wrap, hard-breaking any single word wider than the box."""
+    lines, line = [], ""
+    for word in text.split():
+        while draw.textlength(word, font=font) > max_width and len(word) > 1:
+            cut = len(word) - 1
+            while cut > 1 and draw.textlength(word[:cut], font=font) > max_width:
+                cut -= 1
+            if line:
+                lines.append(line)
+                line = ""
+            lines.append(word[:cut])
+            word = word[cut:]
+        trial = f"{line} {word}".strip()
+        if not line or draw.textlength(trial, font=font) <= max_width:
+            line = trial
+        else:
+            lines.append(line)
+            line = word
+    if line:
+        lines.append(line)
+    return lines
+
+
+def fit_block(draw, text, box, max_size, font_path=FONT_BOLD, max_lines=3, min_size=12):
+    """Biggest font at which text wraps into box within max_lines."""
+    w, h = box
+    font = load_font(font_path, min_size)
+    lines = wrap_text(draw, text, font, w)
+    for size in range(max_size, min_size - 1, -1):
+        candidate = load_font(font_path, size)
+        wrapped = wrap_text(draw, text, candidate, w)
+        if len(wrapped) <= max_lines and len(wrapped) * (size + 5) <= h:
+            return candidate, wrapped
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+        lines[-1] = lines[-1][:-1] + "\u2026"
+    return font, lines
+
+
+def draw_block(draw, lines, font, cell, fill):
+    """Center a wrapped block inside cell=(x, y, w, h)."""
+    x, y, w, h = cell
+    step = font.size + 5
+    top = y + (h - len(lines) * step) / 2
+    for i, line in enumerate(lines):
+        width = draw.textlength(line, font=font)
+        draw.text((x + (w - width) / 2, top + i * step), line, font=font, fill=fill)
+
+
+def mmss(seconds):
+    seconds = max(0, int(seconds))
+    return f"{seconds // 60}:{seconds % 60:02d}"
+
+
+def now_playing_strip(title, artist, position, length, size, art=None):
+    """704x124 strip frame laid out as four self-contained 176x124 cards.
+
+    The strip is four separate panels with bezels between them, so
+    nothing may cross a cell boundary: album art fills card 0, the title
+    and artist get a card each, and the progress bar lives inside card 3.
     """
     w, h = size
+    cw = w // 4
+    pad = 12
     img = Image.new("RGB", (w, h), (0, 0, 0))
     d = ImageDraw.Draw(img)
-    x0 = 16
+
+    # card 0: cover art, edge to edge
     if art is not None:
-        side = h - 16
-        thumb = art.convert("RGB")
-        thumb.thumbnail((side, side), Image.LANCZOS)
-        img.paste(thumb, (12, (h - thumb.height) // 2))
-        x0 = 12 + side + 16
-    d.text((x0, 14), "\u25b6", font=load_font(FONT_BOLD, 20), fill=(120, 220, 160))
-    tfont = fit_text(d, title, w - x0 - 46, 30)
-    d.text((x0 + 30, 12), title, font=tfont, fill=(240, 240, 245))
+        img.paste(cover_crop(art.convert("RGB"), (cw, h)), (0, 0))
+    else:
+        d.rectangle((0, 0, cw - 1, h - 1), fill=(14, 15, 19))
+        glyph = load_font(FONT_BOLD, 54)
+        bb = d.textbbox((0, 0), "\u25b6", font=glyph)
+        d.text(((cw - bb[2]) / 2, (h - bb[3]) / 2 - bb[1] / 2), "\u25b6",
+               font=glyph, fill=(120, 220, 160))
+
+    # card 1: title
+    box = (cw - 2 * pad, h - 2 * pad)
+    font, lines = fit_block(d, title or "", box, 32)
+    draw_block(d, lines, font, (cw + pad, pad, box[0], box[1]), (240, 240, 245))
+
+    # card 2: artist
     if artist:
-        afont = fit_text(d, artist, w - x0 - 22, 18, FONT)
-        d.text((x0 + 2, 52), artist, font=afont, fill=(150, 155, 170))
-    # progress bar
-    frac = max(0.0, min(1.0, position / length)) if length else 0.0
-    d.rectangle((16, h - 26, w - 16, h - 18), fill=(30, 32, 42))
-    d.rectangle((16, h - 26, 16 + int((w - 32) * frac), h - 18), fill=(120, 200, 250))
+        font, lines = fit_block(d, artist, box, 24, FONT)
+        draw_block(d, lines, font, (2 * cw + pad, pad, box[0], box[1]), (150, 155, 170))
+
+    # card 3: elapsed over a contained bar over total
+    x0, x1 = 3 * cw + pad + 4, 4 * cw - pad - 4
     if length:
-        def mmss(s):
-            s = int(s)
-            return f"{s // 60}:{s % 60:02d}"
-        pfont = load_font(FONT, 13)
-        d.text((16, h - 16), mmss(position), font=pfont, fill=(140, 145, 160))
-        end = mmss(length)
-        bb = d.textbbox((0, 0), end, font=pfont)
-        d.text((w - 16 - (bb[2] - bb[0]), h - 16), end, font=pfont, fill=(140, 145, 160))
+        frac = max(0.0, min(1.0, position / length))
+        top, bot = h // 2 - 5, h // 2 + 5
+        d.rounded_rectangle((x0, top, x1, bot), radius=5, fill=(30, 32, 42))
+        filled = x0 + (x1 - x0) * frac
+        if filled > x0 + 1:
+            d.rounded_rectangle((x0, top, filled, bot), radius=5, fill=(120, 200, 250))
+        elapsed_font, total_font = load_font(FONT_BOLD, 26), load_font(FONT, 20)
+        elapsed, total = mmss(position), mmss(length)
+        d.text((x0 + (x1 - x0 - d.textlength(elapsed, font=elapsed_font)) / 2, top - 44),
+               elapsed, font=elapsed_font, fill=(235, 238, 245))
+        d.text((x0 + (x1 - x0 - d.textlength(total, font=total_font)) / 2, bot + 14),
+               total, font=total_font, fill=(140, 145, 160))
+    else:
+        font = load_font(FONT_BOLD, 26)
+        label = mmss(position)
+        d.text((x0 + (x1 - x0 - d.textlength(label, font=font)) / 2, h / 2 - 18),
+               label, font=font, fill=(235, 238, 245))
     return img
 
 
 def overlay_strip(label, frac, size):
-    """704x124 transient feedback frame: label + percentage + level bar."""
+    """704x124 knob feedback frame on the same four-card grid.
+
+    The level reads as one meter but is drawn as four contained chunks,
+    so the panel bezels fall in the gaps instead of cutting the bar.
+    """
     w, h = size
+    cw = w // 4
+    pad = 12
     frac = max(0.0, min(1.0, frac))
     img = Image.new("RGB", (w, h), (0, 0, 0))
     d = ImageDraw.Draw(img)
-    font = load_font(FONT_BOLD, 34)
-    cy = h // 2 - 40
-    d.text((16, cy), label, font=font, fill=(240, 240, 245))
+    box = (cw - 2 * pad, h // 2)
+    font, lines = fit_block(d, label, box, 30, max_lines=1)
+    draw_block(d, lines, font, (pad, 4, box[0], box[1]), (240, 240, 245))
     pct = f"{int(round(frac * 100))}%"
-    bb = d.textbbox((0, 0), pct, font=font)
-    d.text((w - 16 - (bb[2] - bb[0]), cy), pct, font=font, fill=(120, 200, 250))
-    top, bot = h // 2 + 10, h // 2 + 30
-    d.rectangle((16, top, w - 16, bot), outline=(60, 62, 75), width=2)
-    d.rectangle((20, top + 4, 20 + int((w - 40) * frac), bot - 4), fill=(120, 200, 250))
+    font, lines = fit_block(d, pct, box, 34, max_lines=1)
+    draw_block(d, lines, font, (3 * cw + pad, 4, box[0], box[1]), (120, 200, 250))
+    top, bot = h - 54, h - 26
+    radius = 10
+    for seg in range(4):
+        x0, x1 = seg * cw + pad + 4, (seg + 1) * cw - pad - 4
+        d.rounded_rectangle((x0, top, x1, bot), radius=radius, fill=(30, 32, 42))
+        filled = x0 + (x1 - x0) * min(1.0, max(0.0, frac * 4 - seg))
+        if filled >= x0 + 2 * radius:
+            d.rounded_rectangle((x0, top, filled, bot), radius=radius,
+                                fill=(120, 200, 250))
     return img
 
 

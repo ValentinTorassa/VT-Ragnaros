@@ -22,12 +22,31 @@ def test_now_playing_strip_layout():
     assert img.mode == "RGB"
 
 
-def test_now_playing_strip_with_art_shifts_text():
-    art = Image.new("RGB", (300, 300), (200, 10, 10))
+def test_now_playing_art_fills_the_first_card():
+    """Art covers its 176x124 panel edge to edge - no bands, no squash."""
+    art = Image.new("RGB", (300, 200), (200, 10, 10))
     img = renderer.now_playing_strip("Title", "Artist", 30, 120, STRIP_FULL, art=art)
-    assert img.size == STRIP_FULL
-    # art thumbnail pasted near the left edge must be non-black now
-    assert img.getpixel((60, 62)) != (0, 0, 0)
+    for corner in ((0, 0), (175, 0), (0, 123), (175, 123), (88, 62)):
+        assert img.getpixel(corner) == (200, 10, 10)
+
+
+def test_now_playing_keeps_the_panel_seams_clear():
+    """Nothing may be painted across a bezel between two panels."""
+    img = renderer.now_playing_strip(
+        "Everything In Its Right Place", "Thom Yorke And The Whole Band",
+        90, 251, STRIP_FULL, art=Image.new("RGB", (300, 300), (200, 10, 10)))
+    # card 0 is the cover art and owns its panel up to x=175
+    for x in list(range(176, 180)) + [x for s in (352, 528) for x in range(s - 4, s + 4)]:
+        column = [img.getpixel((x, y)) for y in range(124)]
+        assert set(column) == {(0, 0, 0)}, f"ink on the seam at x={x}"
+
+
+def test_overlay_strip_keeps_the_panel_seams_clear():
+    img = renderer.overlay_strip("BRIGHTNESS", 0.62, STRIP_FULL)
+    for seam in (176, 352, 528):
+        for x in range(seam - 4, seam + 4):
+            column = [img.getpixel((x, y)) for y in range(124)]
+            assert set(column) == {(0, 0, 0)}, f"ink on the seam at x={x}"
 
 
 def test_now_playing_zero_length_does_not_divide_by_zero():

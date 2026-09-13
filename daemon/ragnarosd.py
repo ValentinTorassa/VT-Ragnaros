@@ -995,6 +995,8 @@ class Deck:
     def strip_state(self):
         if self.locked:
             return "off"
+        if time.monotonic() < self.overlay_until:
+            return "notice"  # a toast or a knob overlay, on its way out
         if self.alert:
             return "alert"
         if self.pinned:

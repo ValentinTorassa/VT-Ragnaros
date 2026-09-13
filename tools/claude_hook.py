@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Claude Code hook: raise a deck notice when a session stops working.
+"""Claude Code hook: tell the deck when a session stops working.
 
-Register it as a `Stop` hook and the strip holds "Claude terminó", the
-project name and the last thing Claude said, counting how long it has
-been waiting, until you press any key on the deck.
+Register it as a `Stop` hook and the strip shows "Claude terminó", the
+project and the last thing Claude said, for a few seconds - then it goes
+back to the GIFs, the dashboard or whatever it was showing.
 
   cat hook.json | python3 tools/claude_hook.py
+
+  RAGNAROS_CLAUDE_HOOK_MODE=alert   hold the notice until a key is pressed
+  RAGNAROS_CLAUDE_HOOK_SECONDS=12   how long the toast stays (default 8)
 
 Never fails the session: every error exits 0 quietly.
 """
@@ -17,6 +20,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..
 
 TAIL_BYTES = 256 * 1024
 MAX_BODY = 140
+MODE = os.environ.get("RAGNAROS_CLAUDE_HOOK_MODE", "toast")
+SECONDS = os.environ.get("RAGNAROS_CLAUDE_HOOK_SECONDS", "8")
 
 
 def last_assistant_text(path):
@@ -58,11 +63,12 @@ def main():
     event = payload.get("hook_event_name") or "Stop"
     summary = "Claude espera" if event == "Notification" else "Claude terminó"
     body = last_assistant_text(payload.get("transcript_path") or "")
+    detail = f"{project} · {body}" if body else project
+    command = ["alert"] if MODE == "alert" else ["toast", f"--seconds={SECONDS}"]
     try:
         import control
 
-        control.request(["alert", summary, f"{project} · {body}" if body else project,
-                         "--app=claude"], timeout=1.0)
+        control.request(command + [summary, detail, "--app=claude"], timeout=1.0)
     except Exception:
         pass  # no deck, no daemon, no problem
     return 0

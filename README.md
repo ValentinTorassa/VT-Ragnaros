@@ -173,7 +173,10 @@ presses a key on the deck, and the last card counts how long it has been
 waiting. That is the shape of "come back and look at this".
 
 The bundled `tools/claude_hook.py` is a Claude Code `Stop` hook: when a session
-finishes, the deck shows the project and the last thing Claude said, waiting.
+finishes, the deck shows the project and the last thing Claude said for eight
+seconds, then hands the strip back to the GIFs or the dashboard. Set
+`RAGNAROS_CLAUDE_HOOK_MODE=alert` to make it an alert that waits instead, and
+`RAGNAROS_CLAUDE_HOOK_SECONDS` to change how long the toast stays.
 
 ```json
 { "hooks": { "Stop": [ { "hooks": [ {

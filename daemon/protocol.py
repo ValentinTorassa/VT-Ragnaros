@@ -216,6 +216,13 @@ class Ragnaros:
         self.command(0x53, 0x54, 0x50)
 
     def set_mode(self, mode):
+        """Decoded from the vendor DLL; no observable effect on this deck.
+
+        Swept 0-9 with tools/probe_modes.py on 2026-09-13: the panels keep
+        showing whatever was painted, input keeps arriving, and no feature
+        or input report changes. Kept because the command is part of the
+        protocol, not because it does anything for us.
+        """
         self.command(0x4D, 0x4F, 0x44, 0x00, 0x00, 0x30 + mode)
 
     def sleep(self):

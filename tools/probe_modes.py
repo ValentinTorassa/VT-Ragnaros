@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Find out what the firmware's MOD command does.
 
+Verdict so far: nothing. Swept 0-9 on 2026-09-13 and the only thing that
+changed on the panels was this tool's own pattern. Kept in case a future
+firmware gives MOD a meaning.
+
 protocol.set_mode() sends CRT + "MOD" + ('0' + n). It was decoded from the
 vendor DLL and never called: nobody knows what the modes are. This paints a
 readable pattern, then walks the modes so you can watch the deck and say what

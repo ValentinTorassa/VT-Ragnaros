@@ -1,3 +1,5 @@
+# Perfil de ejemplo. Las rutas son de muestra: apuntalas a tus propios
+# directorios. El daemon no valida que existan hasta que apretas la tecla.
 name: work
 strip:
   segments:

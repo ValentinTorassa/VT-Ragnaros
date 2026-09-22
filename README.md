@@ -1,6 +1,6 @@
 # VT-Ragnaros
 
-A reverse-engineered, from-scratch Linux driver and daemon for the **Ragnaros USB control deck** — a Linux-native alternative to the vendor's Windows software.
+A reverse-engineered, from-scratch Linux driver and daemon for the **Ragnaros USB control deck** - a Linux-native alternative to the vendor's Windows software.
 
 The daemon renders icons and animated GIFs onto the deck's LCD keys and touch strip, and executes configurable shell commands on every input event.
 
@@ -10,16 +10,16 @@ The daemon renders icons and animated GIFs onto the deck's LCD keys and touch st
 - **4 rotary knobs** with rotate (CW/CCW) and press actions, with detent debouncing
 - **4-segment LCD touch strip** (704x124 combined): taps and swipes are real inputs,
   and it shows now playing, a system dashboard, desktop notifications or idle GIFs
-- **Key layers** — a second set of keys over the same profile, on a knob press
+- **Key layers** - a second set of keys over the same profile, on a knob press
 - **Hot profile switching** from a key, a swipe or the CLI
-- **`ragnarosctl`** — a control socket for scripts, shortcuts and CI
-- **Desktop aware** — toasts on the strip, and the deck goes dark when the session locks
+- **`ragnarosctl`** - a control socket for scripts, shortcuts and CI
+- **Desktop aware** - toasts on the strip, and the deck goes dark when the session locks
 - **YAML keymap profiles** mapping any input to a shell command
 - Runs as a **systemd user service**
 
 ## How It Works
 
-The vendor protocol was reverse-engineered from the Windows `SDLibrary1.dll` — no vendor SDK is used.
+The vendor protocol was reverse-engineered from the Windows `SDLibrary1.dll` - no vendor SDK is used.
 
 ```
 ragnarosd.py ──> protocol.py ──(ctypes / libusb-1.0)──> Ragnaros deck
@@ -29,7 +29,7 @@ ragnarosd.py ──> protocol.py ──(ctypes / libusb-1.0)──> Ragnaros dec
      └── profiles/*.yaml ── events -> shell commands
 ```
 
-- Output: images sent as JPEG payloads over bulk endpoint with a `CRT` command header; keys map to display slots 5–14, strip segments to 0–3 (content rotated 180°)
+- Output: images sent as JPEG payloads over bulk endpoint with a `CRT` command header; keys map to display slots 5-14, strip segments to 0-3 (content rotated 180°)
 - Input: reports polled from EP `0x82`, decoded into `key`, `knob`, `knob_press`, `strip_touch`, and `strip_swipe` events
 
 ## Installation
@@ -45,7 +45,7 @@ cd VT-Ragnaros
 The installer:
 
 1. Symlinks `daemon/`, `profiles/`, and `assets/` into `~/.config/ragnaros`
-2. Installs udev rules (hidraw permissions, `plugdev` group) and a `usbhid` kernel quirk for the device — **requires sudo and one reboot**
+2. Installs udev rules (hidraw permissions, `plugdev` group) and a `usbhid` kernel quirk for the device - **requires sudo and one reboot**
 3. Installs and enables the `ragnarosd.service` systemd user unit
 4. Installs Python dependencies (`pillow`, `pyyaml`) if missing
 
@@ -57,7 +57,7 @@ systemctl --user start ragnarosd
 
 ## Profiles
 
-Profiles live in `profiles/` as YAML files. Bundled: `streaming` (default), `work`, `ai-tools`, `stream` (OBS) and `system` — a dashboard tab whose strip stays on the metrics and whose first four keys pick which cards it shows.
+Profiles live in `profiles/` as YAML files. Bundled: `streaming` (default), `work`, `ai-tools`, `stream` (OBS) and `system` - a dashboard tab whose strip stays on the metrics and whose first four keys pick which cards it shows.
 
 Each profile maps 10 keys and 4 knobs to actions, plus optional idle strip GIFs:
 
@@ -211,14 +211,14 @@ published on the same stream.
 
 ## Tools
 
-- `tools/gen_assets.py` — generates 112x112 key icons (Font Awesome glyphs + app icons), including animated tiles
-- `tools/process_strip_gif.py` — converts GIFs to the 704x124 strip format
-- `tools/ragnarosctl` — control CLI for the running daemon
-- `tools/preview_strip.py` — renders the strip frames to a PNG with the bezels marked, to judge layout without the deck
-- `tools/strip_order.py` — paints 1 2 3 4 on the panels to confirm their physical order
-- `tools/claude_hook.py` — Claude Code Stop hook: raises a deck notice when a session finishes
-- `tools/probe_modes.py` — walks the firmware's undocumented MOD command, dumping the feature and input reports at each step. Findings so far: modes 0-9 change no reported state and never break input, and every feature report (0-3) and input report 1 return the same firmware string, `V3.SS_552.02.009` — a version identifier, not device state
-- `tools/sniff.py`, `handshake.py`, `probe*.py`, `wake.py`, `listen.py`, `paint*.py` — reverse-engineering and protocol discovery utilities
+- `tools/gen_assets.py` - generates 112x112 key icons (Font Awesome glyphs + app icons), including animated tiles
+- `tools/process_strip_gif.py` - converts GIFs to the 704x124 strip format
+- `tools/ragnarosctl` - control CLI for the running daemon
+- `tools/preview_strip.py` - renders the strip frames to a PNG with the bezels marked, to judge layout without the deck
+- `tools/strip_order.py` - paints 1 2 3 4 on the panels to confirm their physical order
+- `tools/claude_hook.py` - Claude Code Stop hook: raises a deck notice when a session finishes
+- `tools/probe_modes.py` - walks the firmware's undocumented MOD command, dumping the feature and input reports at each step. Findings so far: modes 0-9 change no reported state and never break input, and every feature report (0-3) and input report 1 return the same firmware string, `V3.SS_552.02.009` - a version identifier, not device state
+- `tools/sniff.py`, `handshake.py`, `probe*.py`, `wake.py`, `listen.py`, `paint*.py` - reverse-engineering and protocol discovery utilities
 
 ## Requirements
 
@@ -226,7 +226,7 @@ published on the same stream.
 - `libusb-1.0` (loaded via ctypes, no Python binding needed)
 - Linux: udev rules, usbhid quirk, systemd user units
 - `playerctl`, `wpctl`, `brightnessctl` for the bundled actions
-- `dbus-monitor` (Debian: `dbus-bin`) for toasts and lock dimming — optional
+- `dbus-monitor` (Debian: `dbus-bin`) for toasts and lock dimming - optional
 
 ## License
 

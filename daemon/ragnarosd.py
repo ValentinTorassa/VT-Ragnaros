@@ -831,7 +831,7 @@ class Deck:
             elif cmd == "replay-save":
                 obsclient.command("SaveReplayBuffer")
             elif cmd.startswith("scene:"):
-                idx = int(cmd.split(":", 2)[2])
+                idx = int(cmd.split(":", 1)[1])
                 st = self.obs_state if self.obs_state else obsclient.status()
                 names = st.get("scenes") or []
                 if idx < len(names):

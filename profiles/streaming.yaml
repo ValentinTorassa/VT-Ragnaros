@@ -1,10 +1,10 @@
 name: streaming
 strip:
   segments:
-    - gifs/segments/auto_5LhLOxI5.gif
-    - gifs/segments/auto_fU7TFoLb.gif
-    - gifs/segments/auto_0xxL_t05.gif
-    - gifs/segments/auto_LmA9KL1I.gif
+    - gifs/segments/eva01.gif
+    - gifs/segments/asuka.gif
+    - gifs/segments/rei.gif
+    - gifs/segments/shinji.gif
   dashboard: [clock, cpu, ram, temp]
 keys:
   "0":

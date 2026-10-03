@@ -4,10 +4,10 @@ import os
 import sys
 import time
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "daemon"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from PIL import Image, ImageDraw
-from protocol import KEY_COUNT, KEY_LCD, Ragnaros
+from ragnaros.protocol import KEY_COUNT, KEY_LCD, Ragnaros
 
 SIZE = tuple(int(a) for a in (sys.argv[1].split("x") if len(sys.argv) > 1 else KEY_LCD))
 

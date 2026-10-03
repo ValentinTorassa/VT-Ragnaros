@@ -1,14 +1,8 @@
 import importlib
 import io
 import json
-import os
-import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(ROOT, "tools"))
-
-import claude_hook  # noqa: E402
-import control  # noqa: E402
+from ragnaros import claude_hook, control
 
 
 def load(monkeypatch, **env):
@@ -31,7 +25,7 @@ def run(monkeypatch, hook, payload):
     sent = []
     monkeypatch.setattr(control, "request", lambda argv, **kw: sent.append(argv))
     monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(payload)))
-    assert hook.main() == 0
+    assert hook.main([]) == 0
     return sent
 
 
@@ -93,4 +87,4 @@ def test_a_dead_daemon_never_fails_the_session(monkeypatch):
 
     monkeypatch.setattr(control, "request", boom)
     monkeypatch.setattr("sys.stdin", io.StringIO("{}"))
-    assert hook.main() == 0
+    assert hook.main([]) == 0

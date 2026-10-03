@@ -26,11 +26,11 @@ import os
 import sys
 import time
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "daemon"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from PIL import Image, ImageDraw, ImageFont
 
-from protocol import KEY_COUNT, KEY_LCD, ROTATION, STRIP_LCD, Ragnaros
+from ragnaros.protocol import KEY_COUNT, KEY_LCD, ROTATION, STRIP_LCD, Ragnaros
 
 HOLD = float(os.environ.get("RAGNAROS_PROBE_HOLD", "5"))
 SANS = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"

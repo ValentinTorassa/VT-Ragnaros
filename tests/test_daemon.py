@@ -1,6 +1,6 @@
 import pytest
 
-import ragnarosd
+from ragnaros import daemon as ragnarosd
 
 
 class FakeDev:

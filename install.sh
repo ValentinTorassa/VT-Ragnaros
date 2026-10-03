@@ -28,12 +28,17 @@ doctor() {
   fi
 
   echo " system:"
-  if [[ -f /etc/udev/rules.d/99-ragnaros.rules ]]; then
-    ok "udev rule installed"
+  local rule
+  for rule in /etc/udev/rules.d/70-ragnaros.rules /usr/lib/udev/rules.d/70-ragnaros.rules \
+              /etc/udev/rules.d/99-ragnaros.rules ""; do
+    [[ -z "$rule" || -f "$rule" ]] && break
+  done
+  if [[ -n "$rule" ]]; then
+    ok "udev rule installed ($rule)"
   else
-    bad "udev rule missing (/etc/udev/rules.d/99-ragnaros.rules)"
+    bad "udev rule missing (/etc/udev/rules.d/70-ragnaros.rules)"
   fi
-  if [[ -f /etc/modprobe.d/ragnaros-usbhid.conf ]]; then
+  if [[ -f /etc/modprobe.d/ragnaros-usbhid.conf || -f /usr/lib/modprobe.d/ragnaros-usbhid.conf ]]; then
     ok "usbhid quirk installed"
   else
     bad "usbhid quirk missing (/etc/modprobe.d/ragnaros-usbhid.conf)"
@@ -92,6 +97,14 @@ doctor() {
     bad "dbus-monitor missing - install dbus-bin for toasts and lock dimming"
   fi
 
+  echo " strip:"
+  local theme="${XDG_DATA_HOME:-$HOME/.local/share}/ragnaros/gifs/theme.yaml"
+  if [[ -f "$theme" ]]; then
+    ok "GIF theme: $theme"
+  else
+    info "no GIF theme - bundled idle art (opt in: python3 $REPO_DIR/tools/fetch_gifs.py)"
+  fi
+
   if (( FAILED )); then
     echo "result: FAIL (re-run ./install.sh to repair symlinks and units)"
     exit 1
@@ -110,7 +123,8 @@ ln -sfn "$REPO_DIR/profiles" "$CONFIG_DIR/profiles"
 ln -sfn "$REPO_DIR/assets" "$CONFIG_DIR/assets"
 ln -sfn "$REPO_DIR/tools" "$CONFIG_DIR/tools"
 
-sudo install -m 0644 "$REPO_DIR/udev/99-ragnaros.rules" /etc/udev/rules.d/99-ragnaros.rules
+sudo install -m 0644 "$REPO_DIR/udev/70-ragnaros.rules" /etc/udev/rules.d/70-ragnaros.rules
+sudo rm -f /etc/udev/rules.d/99-ragnaros.rules  # the old name; 70 is needed for uaccess
 sudo install -m 0644 "$REPO_DIR/udev/ragnaros-usbhid.conf" /etc/modprobe.d/ragnaros-usbhid.conf
 if command -v update-initramfs >/dev/null 2>&1; then
   sudo update-initramfs -u
@@ -130,13 +144,17 @@ ln -sfn "$REPO_DIR/tools/ragnarosctl" "$HOME/.local/bin/ragnarosctl"
 
 mkdir -p "$SYSTEMD_DIR"
 cp "$REPO_DIR/systemd/ragnarosd.service" "$SYSTEMD_DIR/"
+# the GIF theme refresh is opt-in (it downloads third-party GIFs from Tenor):
+# installed, never enabled here; a timer you already enabled stays enabled
 cp "$REPO_DIR/systemd/ragnaros-gif-refresh.service" "$REPO_DIR/systemd/ragnaros-gif-refresh.timer" "$SYSTEMD_DIR/"
 systemctl --user daemon-reload
 systemctl --user enable ragnarosd.service
-systemctl --user enable --now ragnaros-gif-refresh.timer
 
 python3 -c "import PIL, yaml" || pip install --user -r "$REPO_DIR/requirements.txt"
 
 echo "Installed. Reboot once to activate the Ragnaros HID quirk, then start with:"
 echo "  systemctl --user start ragnarosd"
 echo "Health check anytime with: ./install.sh doctor"
+echo "Optional anime GIF themes for the strip (downloaded to ~/.local/share/ragnaros/gifs):"
+echo "  python3 $REPO_DIR/tools/fetch_gifs.py --theme jjk"
+echo "  systemctl --user enable --now ragnaros-gif-refresh.timer   # weekly refresh"

@@ -1,10 +1,5 @@
 name: ai-tools
 strip:
-  segments:
-    - gifs/segments/eva01.gif
-    - gifs/segments/auto_9VShcFlu.gif
-    - gifs/segments/auto_jA4OTU74.gif
-    - gifs/segments/shinji.gif
   dashboard: [clock, cpu, ram, net]
 keys:
   "0":

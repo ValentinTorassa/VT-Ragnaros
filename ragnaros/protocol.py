@@ -2,7 +2,7 @@ import ctypes
 import ctypes.util
 import time
 
-from inputmap import parse_input
+from .inputmap import parse_input
 
 VID = 0x0200
 PID = 0x3001

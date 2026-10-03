@@ -4,11 +4,6 @@ name: system
 strip:
   pinned: dashboard
   dashboard: [clock, cpu, ram, temp]
-  segments:
-    - gifs/segments/eva01.gif
-    - gifs/segments/asuka.gif
-    - gifs/segments/rei.gif
-    - gifs/segments/shinji.gif
 keys:
   "0":
     icon: icons/sys_cpu.png

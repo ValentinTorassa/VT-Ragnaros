@@ -1,4 +1,4 @@
-import inputmap
+from ragnaros import inputmap
 
 
 def frame(code, state=1, prefix=b"ACK"):

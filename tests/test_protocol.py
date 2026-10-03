@@ -1,4 +1,4 @@
-import protocol
+from ragnaros import protocol
 
 
 def make_dev():

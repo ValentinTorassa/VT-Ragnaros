@@ -6,10 +6,8 @@ the geometry its panel expects, and each profile is painted and idled once
 against a recording fake device.
 """
 import glob
-import importlib.util
 import io
 import os
-import re
 import shlex
 import time
 from types import SimpleNamespace
@@ -18,12 +16,10 @@ import pytest
 import yaml
 from PIL import Image, ImageSequence
 
-import metrics
-import protocol
-import ragnarosd
+from ragnaros import daemon as ragnarosd
+from ragnaros import fetch_gifs, metrics, paths, protocol, strip_gif
 
-CONFIG = os.environ["RAGNAROS_CONFIG"]
-ASSETS = os.path.join(CONFIG, "assets")
+ASSETS = paths.bundled("assets")
 PROFILE_NAMES = ragnarosd.available_profiles()
 PANELS = ragnarosd.Deck.STRIP_FULL[0] // protocol.STRIP_LCD[0]
 # every frame stays pre-encoded in memory for the life of the daemon
@@ -294,7 +290,7 @@ def test_the_schema_check_catches_mistakes():
                  "6": {"action": "echo 'unterminated"}},
         "knobs": {"4": {"press": "true"},
                   "1": {"rotate": {"cw": "layer:media"}, "press": "dashboard:cpu,fps"}},
-        "strip": {"segments": ["gifs/segments/gojo.gif"] * 5, "pinned": "gifs",
+        "strip": {"segments": ["gifs/segments/mine.gif"] * 5, "pinned": "gifs",
                   "touch": {"4": "true"}, "swipe": {"up": "true"}},
     }
     issues = "\n".join(profile_issues("test", profile))
@@ -321,9 +317,12 @@ def test_duplicate_yaml_keys_are_refused():
 
 
 # -- assets --------------------------------------------------------------------
-IMAGES = sorted(os.path.relpath(p, ASSETS) for p in glob.glob(os.path.join(ASSETS, "**", "*"),
-                                                               recursive=True)
-                if p.lower().endswith((".png", ".gif", ".jpg", ".jpeg")))
+# assets/gifs is never shipped (a checkout may hold a local link to a
+# downloaded GIF theme there), so only the bundled trees are checked
+IMAGES = sorted(rel for rel in (os.path.relpath(p, ASSETS) for p in glob.glob(
+    os.path.join(ASSETS, "**", "*"), recursive=True))
+    if rel.lower().endswith((".png", ".gif", ".jpg", ".jpeg"))
+    and rel.split(os.sep)[0] != "gifs")
 
 
 def decode(path):
@@ -337,6 +336,15 @@ def decode(path):
     return fmt, size, frames
 
 
+def test_no_third_party_gifs_are_bundled():
+    tomllib = pytest.importorskip("tomllib")
+    with open(os.path.join(os.path.dirname(paths.PACKAGE_DIR), "pyproject.toml"), "rb") as f:
+        build = tomllib.load(f)["tool"]["hatch"]["build"]["targets"]
+    shipped = list(build["wheel"]["force-include"]) + build["sdist"]["include"]
+    assert not [src for src in shipped if "gifs" in src], shipped
+    assert all(os.path.dirname(rel) in ("icons", "strip") for rel in IMAGES), IMAGES
+
+
 @pytest.mark.parametrize("rel", IMAGES)
 def test_image_asset_decodes_with_sane_geometry(rel):
     fmt, (w, h), frames = decode(os.path.join(ASSETS, rel))
@@ -345,47 +353,20 @@ def test_image_asset_decodes_with_sane_geometry(rel):
     if folder == "icons":
         # load_icon squashes any icon into a KEY_LCD square
         assert w == h and w >= protocol.KEY_LCD[0], f"{rel}: {w}x{h}"
-    elif folder == os.path.join("gifs", "segments"):
-        # one GIF per strip panel; fetch_gifs.py writes exactly this size
+    elif folder == "strip":
+        # one GIF per strip panel, the size fetch_gifs.py writes too
         assert fmt == "GIF" and (w, h) == protocol.STRIP_LCD, f"{rel}: {fmt} {w}x{h}"
-    elif folder == "gifs":
-        # candidates for strip.gif, stretched across all four panels
-        full_w, full_h = ragnarosd.Deck.STRIP_FULL
-        assert fmt == "GIF" and abs((w / h) / (full_w / full_h) - 1) < 0.02, \
-            f"{rel}: {w}x{h} is not the {full_w}x{full_h} strip shape"
 
 
-def test_default_idle_gif_exists():
-    no_config = SimpleNamespace(strip_config=lambda key, default=None: default)
-    for gif in ragnarosd.Deck.idle_gifs(no_config):
+def test_default_strip_segments_are_bundled():
+    assert len(ragnarosd.DEFAULT_SEGMENTS) == PANELS
+    for gif in ragnarosd.DEFAULT_SEGMENTS:
         assert is_asset(gif), gif
 
 
-def load_tool(name):
-    spec = importlib.util.spec_from_file_location(
-        name, os.path.join(CONFIG, "tools", f"{name}.py"))
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 def test_gif_tools_write_what_the_panels_show():
-    fetch = load_tool("fetch_gifs")
-    assert (fetch.W, fetch.H) == protocol.STRIP_LCD
-    process = load_tool("process_strip_gif")
-    assert (process.W, process.H) == ragnarosd.Deck.STRIP_FULL
-
-
-def test_the_weekly_gif_refresh_can_rewrite_every_profile():
-    """fetch_gifs.py keeps its two anchors and rewrites segments by regex."""
-    fetch = load_tool("fetch_gifs")
-    for anchor in (fetch.ANCHOR_FIRST, fetch.ANCHOR_LAST):
-        assert os.path.isfile(os.path.join(fetch.SEG_DIR, anchor)), anchor
-    for path in fetch.PROFILES:
-        if os.path.exists(path):
-            with open(path) as f:
-                blocks = re.findall(r"  segments:\n(?:    - .*\n)+", f.read())
-            assert len(blocks) == 1, f"{path}: {len(blocks)} segment blocks"
+    assert (fetch_gifs.W, fetch_gifs.H) == protocol.STRIP_LCD
+    assert (strip_gif.W, strip_gif.H) == ragnarosd.Deck.STRIP_FULL
 
 
 # -- dry run -------------------------------------------------------------------

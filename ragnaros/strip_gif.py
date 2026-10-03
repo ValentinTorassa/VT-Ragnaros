@@ -1,8 +1,10 @@
-#!/usr/bin/env python3
 """Convert any GIF to the Ragnaros strip format (704x124):
 sharp subject centered over a blurred full-scene background.
 
-Usage: python3 tools/process_strip_gif.py in.gif out.gif [duration_ms]
+Usage: ragnaros-strip-gif in.gif out.gif [duration_ms]
+
+Name the result in a profile as strip.gif (one GIF across all four panels),
+from any assets root, e.g. ~/.local/share/ragnaros/gifs/mine.gif -> gifs/mine.gif.
 """
 import sys
 
@@ -34,5 +36,14 @@ def convert(src_path, dst_path, duration=90):
     print(f"{dst_path}: {len(frames)} frames")
 
 
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    if len(argv) < 2 or argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return 0 if argv and argv[0] in ("-h", "--help") else 2
+    convert(argv[0], argv[1], int(argv[2]) if len(argv) > 2 else 90)
+    return 0
+
+
 if __name__ == "__main__":
-    convert(sys.argv[1], sys.argv[2], int(sys.argv[3]) if len(sys.argv) > 3 else 90)
+    sys.exit(main())

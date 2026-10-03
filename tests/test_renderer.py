@@ -3,7 +3,7 @@ import io
 import pytest
 from PIL import Image
 
-import renderer
+from ragnaros import renderer
 
 STRIP_FULL = (704, 124)
 

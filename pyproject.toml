@@ -1,0 +1,65 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ragnaros"
+dynamic = ["version"]
+description = "Reverse-engineered Linux driver and daemon for the Ragnaros (Redragon SS552) USB control deck"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Valentin Torassa" }]
+requires-python = ">=3.9"
+dependencies = ["pillow>=9.4", "pyyaml>=5.4"]
+keywords = ["stream deck", "redragon", "ss552", "mirabox", "ajazz", "libusb", "linux"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: No Input/Output (Daemon)",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Hardware :: Hardware Drivers",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.urls]
+Homepage = "https://github.com/ValentinTorassa/VT-Ragnaros"
+Issues = "https://github.com/ValentinTorassa/VT-Ragnaros/issues"
+
+[project.scripts]
+ragnarosd = "ragnaros.daemon:main"
+ragnarosctl = "ragnaros.ctl:main"
+ragnaros = "ragnaros.cli:main"
+ragnaros-fetch-gifs = "ragnaros.fetch_gifs:main"
+ragnaros-claude-hook = "ragnaros.claude_hook:main"
+ragnaros-strip-gif = "ragnaros.strip_gif:main"
+ragnaros-preview-strip = "ragnaros.preview_strip:main"
+ragnaros-usage = "ragnaros.usage_report:main"
+
+[tool.hatch.version]
+path = "ragnaros/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ragnaros"]
+
+# The checkout keeps these trees at the top level (install.sh and the tests
+# use them in place); the wheel carries them inside the package, where
+# ragnaros.paths.bundled() finds them. assets/gifs is deliberately absent.
+[tool.hatch.build.targets.wheel.force-include]
+"profiles" = "ragnaros/profiles"
+"assets/icons" = "ragnaros/assets/icons"
+"assets/strip" = "ragnaros/assets/strip"
+"udev" = "ragnaros/udev"
+"packaging/systemd" = "ragnaros/packaging/systemd"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/ragnaros", "/profiles", "/assets/icons", "/assets/strip", "/assets/fonts",
+    "/udev", "/systemd", "/packaging", "/tests", "/tools", "/daemon",
+    "/install.sh", "/README.md", "/LICENSE", "/requirements*.txt",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

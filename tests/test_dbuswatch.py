@@ -1,4 +1,4 @@
-import dbuswatch
+from ragnaros import dbuswatch
 
 TRANSCRIPT = """method call time=1 sender=:1.4 -> destination=:1.7 serial=9 path=/org/freedesktop/Notifications; interface=org.freedesktop.Notifications; member=Notify
    string "Signal"

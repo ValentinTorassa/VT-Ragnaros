@@ -1,14 +1,34 @@
+import os
+
 from PIL import Image, ImageDraw, ImageFont, ImageSequence
 
-FONT_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+# DejaVu lives in a different directory on each distro family
+FONT_DIRS = ("/usr/share/fonts/truetype/dejavu",  # Debian, Ubuntu
+             "/usr/share/fonts/TTF",              # Arch
+             "/usr/share/fonts/dejavu-sans-fonts",  # Fedora
+             "/usr/share/fonts/dejavu")
+
+
+def find_font(name):
+    for directory in FONT_DIRS:
+        path = os.path.join(directory, name)
+        if os.path.exists(path):
+            return path
+    return os.path.join(FONT_DIRS[0], name)  # load_font falls back to Pillow's own
+
+
+FONT_BOLD = find_font("DejaVuSans-Bold.ttf")
+FONT = find_font("DejaVuSans.ttf")
 
 
 def load_font(path, size):
     try:
         return ImageFont.truetype(path, size)
     except OSError:
-        return ImageFont.load_default(size)
+        try:
+            return ImageFont.load_default(size)
+        except TypeError:  # Pillow < 10.1 has one fixed-size default font
+            return ImageFont.load_default()
 
 
 def load_icon(path, size, rotation=0):

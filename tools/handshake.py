@@ -17,10 +17,10 @@ import os
 import sys
 import time
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "daemon"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from inputmap import parse_input
-from protocol import Ragnaros
+from ragnaros.inputmap import parse_input
+from ragnaros.protocol import Ragnaros
 
 WAIT_SECONDS = float(os.environ.get("WAIT_SECONDS", "20"))
 LISTEN_SECONDS = float(os.environ.get("LISTEN_SECONDS", "45"))

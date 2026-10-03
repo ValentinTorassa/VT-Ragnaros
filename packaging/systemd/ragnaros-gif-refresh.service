@@ -3,4 +3,4 @@ Description=Ragnaros strip GIF theme refresh (opt-in, downloads from Tenor)
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/python3 %h/.config/ragnaros/tools/fetch_gifs.py
+ExecStart=/usr/bin/ragnaros-fetch-gifs

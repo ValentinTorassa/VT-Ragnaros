@@ -2,7 +2,8 @@
 """Generate Ragnaros key icons (112x112) in one unified dark style:
 real app icons where available, white FA glyphs with accent captions elsewhere.
 
-Usage: python3 tools/gen_assets.py [outdir]   (default: repo assets/)
+Usage: python3 tools/gen_assets.py [outdir]           (default: repo assets/)
+       python3 tools/gen_assets.py --strip [outdir]   only the default strip idle art
 """
 import colorsys
 import math
@@ -12,8 +13,12 @@ import sys
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "assets")
+STRIP_ONLY = "--strip" in sys.argv
+ARGS = [a for a in sys.argv[1:] if a != "--strip"]
+OUT = ARGS[0] if ARGS else os.path.join(ROOT, "assets")
 ICON_DIR = os.path.join(OUT, "icons")
+STRIP_DIR = os.path.join(OUT, "strip")
+PANEL = (176, 124)
 
 SANS = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 FA = os.path.join(OUT, "fonts", "fa-solid-900.ttf")
@@ -188,7 +193,49 @@ def make_hue_icon(glyph, caption, accent, frames=16):
     return out
 
 
+# default strip idle art: one self-contained loop per panel (the daemon
+# rotates panel order every 30 s, so nothing may span two panels)
+STRIP_ACCENTS = [(60, 230, 230), (200, 150, 250), (250, 175, 80), (120, 230, 170)]
+
+
+def make_wave_panel(accent, phase, frames=24):
+    w, h = PANEL
+    out = []
+    for f in range(frames):
+        img = Image.new("RGB", PANEL)
+        for y in range(h):
+            img.paste(lerp(DARK_TOP, DARK_BOT, y / (h - 1)), (0, y, w, y + 1))
+        t = f / frames * 2 * math.pi
+        glow = Image.new("L", PANEL, 0)
+        line = Image.new("L", PANEL, 0)
+        gd, ld = ImageDraw.Draw(glow), ImageDraw.Draw(line)
+        for k, (amp, freq, alpha) in enumerate(((26, 1.0, 255), (16, 1.7, 120))):
+            pts = [(x, h / 2 + amp * math.sin(x / w * 2 * math.pi * freq + t + phase + k))
+                   for x in range(0, w + 1, 2)]
+            gd.line(pts, fill=alpha, width=9)
+            ld.line(pts, fill=alpha, width=3)
+        glow = glow.filter(ImageFilter.GaussianBlur(6)).point(lambda v: v * 3 // 5)
+        color = Image.new("RGB", PANEL, accent)
+        img = Image.composite(color, img, glow)
+        img = Image.composite(color, img, line)
+        out.append(img.quantize(colors=64, method=Image.Quantize.MEDIANCUT).convert("RGB"))
+    return out
+
+
+def make_strip_defaults():
+    os.makedirs(STRIP_DIR, exist_ok=True)
+    for i, accent in enumerate(STRIP_ACCENTS):
+        frames = make_wave_panel(accent, i * math.pi / 2)
+        frames[0].save(os.path.join(STRIP_DIR, f"default_{i}.gif"), save_all=True,
+                       append_images=frames[1:], duration=80, loop=0, optimize=True)
+    print(f"wrote {len(STRIP_ACCENTS)} strip idle panels -> {STRIP_DIR}")
+
+
 def main():
+    if STRIP_ONLY:
+        make_strip_defaults()
+        return
+    make_strip_defaults()
     os.makedirs(ICON_DIR, exist_ok=True)
     for name, (glyph, caption, accent) in ICONS.items():
         make_icon(glyph, caption, accent).save(os.path.join(ICON_DIR, name + ".png"))

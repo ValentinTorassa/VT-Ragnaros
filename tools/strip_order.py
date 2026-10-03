@@ -17,11 +17,11 @@ import os
 import sys
 import time
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "daemon"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from PIL import Image, ImageDraw, ImageFont
 
-from protocol import ROTATION, STRIP_LCD, Ragnaros
+from ragnaros.protocol import ROTATION, STRIP_LCD, Ragnaros
 
 COLORS = [(230, 60, 70), (60, 180, 90), (60, 140, 240), (240, 190, 60)]
 

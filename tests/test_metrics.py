@@ -1,4 +1,4 @@
-import metrics
+from ragnaros import metrics
 
 
 def test_every_provider_returns_a_renderable_card():

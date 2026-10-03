@@ -1,7 +1,7 @@
 import os
 import time
 
-import control
+from ragnaros import control
 
 
 def test_request_round_trip(tmp_path):

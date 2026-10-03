@@ -3,9 +3,9 @@ import os
 import sys
 import time
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "daemon"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from protocol import Ragnaros
+from ragnaros.protocol import Ragnaros
 
 deck = Ragnaros()
 print(f"opened {deck.path}")

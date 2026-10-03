@@ -1,0 +1,12 @@
+post_install() {
+  echo ">> ragnaros: the usbhid quirk takes effect when usbhid loads. If your"
+  echo "   initramfs carries usbhid, regenerate it (mkinitcpio -P), then reboot."
+  echo "   If usbhid is built into your kernel, add this to the kernel command"
+  echo "   line instead: usbhid.quirks=0x0200:0x3001:0x00000004"
+  echo ">> Then, as your user: systemctl --user enable --now ragnarosd"
+  echo ">> Optional anime GIF themes for the strip: ragnaros-fetch-gifs --help"
+}
+
+post_upgrade() {
+  :
+}

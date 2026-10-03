@@ -1,0 +1,44 @@
+# Maintainer: Valentin Torassa <valentintorassacolombero at gmail dot com>
+#
+# Source of truth for the AUR package. On a release: bump pkgver, run
+# `updpkgsums` once the v$pkgver tag exists, then `makepkg --printsrcinfo > .SRCINFO`
+# and push both files to ssh://aur@aur.archlinux.org/ragnaros.git.
+pkgname=ragnaros
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Linux driver and daemon for the Ragnaros (Redragon SS552) USB control deck"
+arch=('any')
+url="https://github.com/ValentinTorassa/VT-Ragnaros"
+license=('MIT')
+depends=('python' 'python-pillow' 'python-yaml' 'libusb' 'ttf-dejavu')
+makedepends=('python-build' 'python-installer' 'python-hatchling')
+checkdepends=('python-pytest')
+optdepends=('playerctl: media knobs and the now-playing strip'
+            'wireplumber: volume and mic keys (wpctl)'
+            'brightnessctl: brightness knob'
+            'libnotify: pomodoro and OBS notices (notify-send)')
+install=ragnaros.install
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')  # replace with updpkgsums after tagging v$pkgver
+
+build() {
+  cd "VT-Ragnaros-$pkgver"
+  python -m build --wheel --no-isolation
+}
+
+check() {
+  cd "VT-Ragnaros-$pkgver"
+  python -m pytest -q
+}
+
+package() {
+  cd "VT-Ragnaros-$pkgver"
+  python -m installer --destdir="$pkgdir" dist/*.whl
+  install -Dm644 udev/70-ragnaros.rules -t "$pkgdir/usr/lib/udev/rules.d/"
+  install -Dm644 udev/ragnaros-usbhid.conf -t "$pkgdir/usr/lib/modprobe.d/"
+  install -Dm644 packaging/systemd/ragnarosd.service \
+    packaging/systemd/ragnaros-gif-refresh.service \
+    packaging/systemd/ragnaros-gif-refresh.timer \
+    -t "$pkgdir/usr/lib/systemd/user/"
+  install -Dm644 LICENSE -t "$pkgdir/usr/share/licenses/$pkgname/"
+}

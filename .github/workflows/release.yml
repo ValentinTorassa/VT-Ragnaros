@@ -1,0 +1,81 @@
+name: release
+
+# Builds the wheel, sdist and .deb on every v* tag and attaches them to a
+# GitHub release. Run it by hand (workflow_dispatch) to get the artifacts
+# without a release.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NFPM_VERSION: 2.47.0
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt -r requirements-dev.txt build
+      - run: pytest -q
+      - name: Tag matches ragnaros/__init__.py
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(python3 -c 'import re; print(re.search(r"__version__ = \"(.+)\"", open("ragnaros/__init__.py").read()).group(1))')
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match version $version"
+            exit 1
+          fi
+      - name: Wheel and sdist
+        run: python -m build
+      - name: Install nfpm
+        run: |
+          base="https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}"
+          curl -sSLO "$base/nfpm_${NFPM_VERSION}_amd64.deb"
+          curl -sSLO "$base/checksums.txt"
+          grep " nfpm_${NFPM_VERSION}_amd64.deb\$" checksums.txt | sha256sum -c -
+          sudo dpkg -i "nfpm_${NFPM_VERSION}_amd64.deb"
+      - name: .deb
+        run: packaging/deb/build-deb.sh dist
+      - name: Install the .deb and run every command
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ./dist/ragnaros_*_all.deb
+          for cmd in ragnarosd ragnarosctl ragnaros ragnaros-fetch-gifs ragnaros-claude-hook \
+                     ragnaros-strip-gif ragnaros-preview-strip ragnaros-usage; do
+            "/usr/bin/$cmd" --help > /dev/null
+          done
+          ragnaros paths
+          test -f /usr/lib/udev/rules.d/70-ragnaros.rules
+          test -f /usr/lib/systemd/user/ragnarosd.service
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ragnaros-dist
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/*.deb
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: ragnaros-dist
+          path: dist
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" dist/*
+          --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes

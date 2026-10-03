@@ -16,4 +16,4 @@ jobs:
       - run: pip install -r requirements.txt -r requirements-dev.txt
       - run: pytest -q
       - run: python3 -m compileall -q ragnaros daemon tools && python3 -m py_compile tools/ragnarosctl
-      - run: bash -n install.sh
+      - run: bash -n install.sh && bash -n packaging/deb/build-deb.sh && bash -n packaging/aur/PKGBUILD

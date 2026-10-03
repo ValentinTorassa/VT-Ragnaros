@@ -1,0 +1,18 @@
+#!/bin/sh
+set -e
+if [ "$1" = "configure" ]; then
+  if command -v py3compile >/dev/null 2>&1; then
+    py3compile -p ragnaros || true
+  fi
+  if command -v udevadm >/dev/null 2>&1; then
+    udevadm control --reload-rules || true
+    udevadm trigger --subsystem-match=usb --attr-match=idVendor=0200 || true
+  fi
+  # usbhid loads from the initramfs: it has to carry the quirk
+  if command -v update-initramfs >/dev/null 2>&1; then
+    update-initramfs -u || true
+  fi
+  echo "ragnaros: reboot once so usbhid picks up the quirk, then as your user:"
+  echo "ragnaros:   systemctl --user enable --now ragnarosd"
+fi
+exit 0

@@ -1,0 +1,74 @@
+# Debian package for ragnaros, built from the wheel by build-deb.sh:
+#   packaging/deb/build-deb.sh dist/
+# build-deb.sh stages the unpacked wheel in build/deb and sets RAGNAROS_VERSION.
+name: ragnaros
+arch: all
+platform: linux
+version: ${RAGNAROS_VERSION}
+release: "1"
+section: utils
+priority: optional
+maintainer: Valentin Torassa <valentintorassacolombero@gmail.com>
+description: |-
+  Linux driver and daemon for the Ragnaros (Redragon SS552) USB control deck
+   Paints icons and animated GIFs on the deck's ten LCD keys and four-panel
+   touch strip, and runs configurable commands on every key, knob and strip
+   input. Includes udev rules, the usbhid quirk and a systemd user unit.
+homepage: https://github.com/ValentinTorassa/VT-Ragnaros
+license: MIT
+
+depends:
+  - python3 (>= 3.9)
+  - python3-pil
+  - python3-yaml
+  - libusb-1.0-0
+  - fonts-dejavu-core
+recommends:
+  - dbus-bin
+  - playerctl
+  - wireplumber
+  - brightnessctl
+  - libnotify-bin
+
+contents:
+  - src: build/deb/dist-packages/
+    dst: /usr/lib/python3/dist-packages/
+    type: tree
+  - src: build/deb/bin/
+    dst: /usr/bin/
+    type: tree
+    file_info:
+      mode: 0755
+  - src: udev/70-ragnaros.rules
+    dst: /usr/lib/udev/rules.d/70-ragnaros.rules
+    file_info:
+      mode: 0644
+  - src: udev/ragnaros-usbhid.conf
+    dst: /usr/lib/modprobe.d/ragnaros-usbhid.conf
+    file_info:
+      mode: 0644
+  - src: packaging/systemd/ragnarosd.service
+    dst: /usr/lib/systemd/user/ragnarosd.service
+    file_info:
+      mode: 0644
+  - src: packaging/systemd/ragnaros-gif-refresh.service
+    dst: /usr/lib/systemd/user/ragnaros-gif-refresh.service
+    file_info:
+      mode: 0644
+  - src: packaging/systemd/ragnaros-gif-refresh.timer
+    dst: /usr/lib/systemd/user/ragnaros-gif-refresh.timer
+    file_info:
+      mode: 0644
+  - src: LICENSE
+    dst: /usr/share/doc/ragnaros/copyright
+    file_info:
+      mode: 0644
+  - src: README.md
+    dst: /usr/share/doc/ragnaros/README.md
+    file_info:
+      mode: 0644
+
+scripts:
+  postinstall: packaging/deb/postinst
+  preremove: packaging/deb/prerm
+  postremove: packaging/deb/postrm

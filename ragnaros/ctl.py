@@ -11,7 +11,7 @@
   ragnarosctl alert --clear           (any key on the deck also clears it)
   ragnarosctl watch [--grab]          stream every input as JSON; --grab
                                       suppresses the profile's own actions
-  ragnarosctl reload | sleep | wake
+  ragnarosctl reload | reset-display | sleep | wake
 
 Add --json to print the raw reply.
 """
@@ -73,7 +73,8 @@ def main(argv=None):
     if argv[0] == "watch":
         return watch(argv, as_json)
     try:
-        reply = control.request(argv)
+        # Firmware sleep/wake takes two seconds before the profile repaint.
+        reply = control.request(argv, timeout=30.0 if argv[0] == "reset-display" else 2.0)
     except (FileNotFoundError, ConnectionRefusedError):
         print("ragnarosd is not running (no control socket)", file=sys.stderr)
         return 2

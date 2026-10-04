@@ -1117,6 +1117,12 @@ class Deck:
             self._loop_cache.clear()
             self.apply_profile()
             return {"ok": True, "profile": self.profile.get("_name")}
+        if command == "reset-display":
+            self.dev.reset_display()
+            self.dev.set_brightness(0 if self.locked else self.brightness)
+            self.apply_profile()
+            return {"ok": True, "profile": self.profile.get("_name"),
+                    "brightness": self.brightness, "locked": self.locked}
         if command in ("sleep", "wake"):
             self.set_locked(command == "sleep")
             return {"ok": True, "locked": self.locked}

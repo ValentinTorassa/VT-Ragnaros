@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
 # ragnaros-reset: recover a USB-enumerated deck with a firmware sleep/wake.
-#
-# Restarting the user daemon is intentional: startup sends the proven HAN/DIS
-# recovery sequence before repainting.  USB port/controller removal cannot
-# cut power to this deck behind its self-powered hub and can leave it absent.
 set -eu
 
 if ! lsusb -d 0200:3001 | grep -q .; then
@@ -11,15 +7,20 @@ if ! lsusb -d 0200:3001 | grep -q .; then
   exit 1
 fi
 
-systemctl --user restart ragnarosd.service
+# Start the daemon if its control socket is unavailable. A running service can
+# still be waiting for a device, so wait for the socket rather than its unit.
+if ! ragnarosctl status >/dev/null 2>&1; then
+  systemctl --user restart ragnarosd.service
+fi
 
-# The user service stays active while it waits for a missing/unopenable deck.
-# Its control socket only exists after the daemon has actually opened the USB
-# device and repainted it, so an active systemd unit alone is not success.
 for ((attempt = 0; attempt < 10; attempt++)); do
   if ragnarosctl status >/dev/null 2>&1; then
-    echo "ragnaros-reset: deck connected and display recovery requested"
-    exit 0
+    if ragnarosctl reset-display; then
+      echo "ragnaros-reset: display reset and profile repainted"
+      exit 0
+    fi
+    echo "ragnaros-reset: display reset failed; check journalctl --user -u ragnarosd" >&2
+    exit 1
   fi
   sleep 1
 done

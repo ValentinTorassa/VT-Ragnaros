@@ -245,6 +245,7 @@ ragnarosctl profile work                 # or: next, prev, list
 ragnarosctl layer media                  # or: base, list
 ragnarosctl dashboard toggle             # or: on, off, "cpu,ram,temp,gpu"
 ragnarosctl brightness 40
+ragnarosctl reset-display               # firmware sleep/wake and full repaint
 ragnarosctl toast "Build passed" "12 tests, 4.2s" --app=ci --seconds=6
 ragnarosctl key 6                        # run a key's action without touching it
 ragnarosctl alert "Claude terminó" "VT-Ragnaros"   # holds until you press a key

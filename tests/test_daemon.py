@@ -136,6 +136,28 @@ def bare_deck(profile=None, **state):
     return deck
 
 
+@pytest.mark.parametrize("locked,brightness,device_brightness", [
+    (False, 35, 35),
+    (True, 35, 0),
+])
+def test_reset_display_resets_firmware_then_repaints(locked, brightness, device_brightness):
+    calls = []
+
+    class RecordingDev:
+        def reset_display(self):
+            calls.append("firmware reset")
+
+        def set_brightness(self, value):
+            calls.append(("brightness", value))
+
+    deck = bare_deck(locked=locked, brightness=brightness, dev=RecordingDev())
+    deck.apply_profile = lambda: calls.append("repaint")
+
+    assert deck.handle_control(["reset-display"]) == {
+        "ok": True, "profile": "test", "brightness": 35, "locked": locked}
+    assert calls == ["firmware reset", ("brightness", device_brightness), "repaint"]
+
+
 PROFILE = {
     "_name": "test",
     "keys": {"0": {"action": "base-zero"}, "1": {"action": "base-one"}},

@@ -20,6 +20,6 @@ pkgbase = ragnaros
 	optdepends = brightnessctl: brightness knob
 	optdepends = libnotify: pomodoro and OBS notices (notify-send)
 	source = ragnaros-0.1.0.tar.gz::https://github.com/ValentinTorassa/VT-Ragnaros/archive/refs/tags/v0.1.0.tar.gz
-	sha256sums = SKIP
+	sha256sums = ed7ef64b4b279c069f67080eb74771b95063a91f2db01f0f6ccfdaf33256ff48
 
 pkgname = ragnaros

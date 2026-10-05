@@ -44,8 +44,8 @@ after the first install, so `usbhid` loads with the deck's quirk and lets libusb
 
 ### Debian / Ubuntu (.deb)
 
-Every `v*` tag builds `ragnaros_<version>_all.deb` and attaches it to the
-[releases](https://github.com/ValentinTorassa/VT-Ragnaros/releases) page
+Every `v*` tag builds `ragnaros_<version>-1_all.deb` (`ragnaros_0.1.0-1_all.deb` for v0.1.0)
+and attaches it to the [releases](https://github.com/ValentinTorassa/VT-Ragnaros/releases) page
 (`packaging/deb/build-deb.sh` builds it locally from a wheel, with [nfpm](https://nfpm.goreleaser.com)):
 
 ```bash
@@ -56,7 +56,7 @@ systemctl --user enable --now ragnarosd
 
 ### Arch Linux (AUR)
 
-The PKGBUILD lives in `packaging/aur/` and builds from the release tarball:
+The PKGBUILD lives in `packaging/aur/` and builds from GitHub's tarball of the release tag:
 
 ```bash
 cd packaging/aur && makepkg -si            # or, once it is on the AUR: yay -S ragnaros

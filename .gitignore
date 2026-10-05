@@ -6,3 +6,8 @@ __pycache__/
 *.egg-info/
 # third-party GIF themes live in ~/.local/share/ragnaros/gifs, never in git
 /assets/gifs
+# makepkg in packaging/aur
+/packaging/aur/src/
+/packaging/aur/pkg/
+/packaging/aur/*.tar.gz
+/packaging/aur/*.pkg.tar.*

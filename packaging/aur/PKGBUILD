@@ -1,8 +1,25 @@
 # Maintainer: Valentin Torassa <valentintorassacolombero at gmail dot com>
 #
-# Source of truth for the AUR package. On a release: bump pkgver, run
-# `updpkgsums` once the v$pkgver tag exists, then `makepkg --printsrcinfo > .SRCINFO`
-# and push both files to ssh://aur@aur.archlinux.org/ragnaros.git.
+# Source of truth for the AUR package.
+#
+# Before tagging v$pkgver: pkgver here and in .SRCINFO (pkgver and source)
+# must equal __version__ in ragnaros/__init__.py, since release.yml refuses a
+# tag that differs from it, and pkgrel goes back to 1.
+#
+# The checksum is the hash of GitHub's tarball of the tag, so it can only be
+# filled once the tag is pushed. Then, from the repository root:
+#
+#   v=0.1.0
+#   curl -fsSL -o "/tmp/ragnaros-$v.tar.gz" \
+#       "https://github.com/ValentinTorassa/VT-Ragnaros/archive/refs/tags/v$v.tar.gz" &&
+#     sum=$(sha256sum "/tmp/ragnaros-$v.tar.gz" | cut -d' ' -f1) &&
+#     sed -i "s/^sha256sums=.*/sha256sums=('$sum')/" packaging/aur/PKGBUILD &&
+#     sed -i "s/^\tsha256sums = .*/\tsha256sums = $sum/" packaging/aur/.SRCINFO
+#
+# (on Arch, `updpkgsums && makepkg --printsrcinfo > .SRCINFO` does the same),
+# commit both files to main, and copy PKGBUILD, ragnaros.install and .SRCINFO
+# into a clone of ssh://aur@aur.archlinux.org/ragnaros.git to push them there.
+# `makepkg -f` on Arch builds and tests against the real tarball first.
 pkgname=ragnaros
 pkgver=0.1.0
 pkgrel=1
@@ -19,7 +36,7 @@ optdepends=('playerctl: media knobs and the now-playing strip'
             'libnotify: pomodoro and OBS notices (notify-send)')
 install=ragnaros.install
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('SKIP')  # replace with updpkgsums after tagging v$pkgver
+sha256sums=('SKIP')  # filled once the tag is pushed: see the top of this file
 
 build() {
   cd "VT-Ragnaros-$pkgver"

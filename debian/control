@@ -1,0 +1,48 @@
+Source: ragnaros
+Section: utils
+Priority: optional
+Maintainer: Valentin Torassa <valentintorassacolombero@gmail.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ dh-sequence-python3,
+ fonts-dejavu-core <!nocheck>,
+ help2man,
+ pybuild-plugin-pyproject,
+ python3-all,
+ python3-hatchling,
+ python3-pil <!nocheck>,
+ python3-pytest <!nocheck>,
+ python3-yaml <!nocheck>,
+Standards-Version: 4.7.2
+Homepage: https://github.com/ValentinTorassa/VT-Ragnaros
+Vcs-Browser: https://github.com/ValentinTorassa/VT-Ragnaros
+Vcs-Git: https://github.com/ValentinTorassa/VT-Ragnaros.git
+Rules-Requires-Root: no
+
+Package: ragnaros
+Architecture: all
+Depends:
+ fonts-dejavu-core,
+ libusb-1.0-0,
+ ${misc:Depends},
+ ${python3:Depends},
+Recommends:
+ brightnessctl,
+ dbus-bin,
+ libnotify-bin,
+ playerctl,
+ wireplumber,
+Description: driver and daemon for the Ragnaros (Redragon SS552) USB control deck
+ Ragnaros is a reverse-engineered userspace driver for the Redragon SS552
+ "Ragnaros" control deck (USB 0200:3001), which speaks the Mirabox/Ajazz
+ Stream Dock protocol. Its daemon paints icons and animated GIFs on the
+ deck's ten LCD keys and four-panel touch strip through libusb, and runs a
+ command for every key, knob, tap and swipe, as mapped in YAML profiles.
+ .
+ The strip shows what is playing, a system dashboard, desktop notifications
+ or idle animations. Profiles can switch from a key, a swipe or the
+ ragnarosctl control socket, and the deck goes dark when the session locks.
+ .
+ The package installs udev rules that let the logged-in user open the deck,
+ a modprobe option that keeps usbhid off it, and systemd user units that each
+ user enables on their own.

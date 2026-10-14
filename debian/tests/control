@@ -1,0 +1,3 @@
+Test-Command: set -e; for c in ragnarosd ragnarosctl ragnaros ragnaros-fetch-gifs ragnaros-claude-hook ragnaros-strip-gif ragnaros-preview-strip ragnaros-usage; do "$c" --help >/dev/null; done; ragnaros paths
+Depends: @
+Restrictions: superficial

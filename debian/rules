@@ -1,0 +1,59 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/pkg-info.mk
+
+export PYBUILD_NAME = ragnaros
+export PYBUILD_SYSTEM = pyproject
+
+# pybuild installs into usr/lib/python3.X; dh_python3 moves it to python3/
+# later, after dh_installman.
+SITE = debian/ragnaros/usr/lib/python3*/dist-packages
+UPSTREAM_VERSION = $(firstword $(subst +ds, ,$(DEB_VERSION_UPSTREAM)))
+
+# The tests import ragnaros from the checkout and read profiles/ and assets/
+# there (tests/conftest.py), so they run against the source tree. The +ds
+# tarball drops the key icons rendered from third-party app logos (see
+# debian/copyright); the checks that every icon a profile names exists fail
+# for the four profiles that use them, so those cases are deselected.
+DROPPED_ICON_TESTS = $(foreach p,ai-tools stream streaming work,\
+	tests/test_profiles.py::test_bundled_profiles_are_valid[$(p).yaml] \
+	tests/test_bundled_config.py::test_profile_matches_what_the_daemon_reads[$(p)] \
+	tests/test_bundled_config.py::test_profile_paints_every_key_and_panel[$(p)])
+export PYBUILD_TEST_CUSTOM = 1
+export PYBUILD_TEST_ARGS = cd {dir} && {interpreter} -m pytest -q -p no:cacheprovider \
+	$(foreach t,$(DROPPED_ICON_TESTS),'--deselect=$(t)')
+
+COMMANDS = ragnarosd ragnarosctl ragnaros ragnaros-fetch-gifs ragnaros-claude-hook \
+	ragnaros-strip-gif ragnaros-preview-strip ragnaros-usage
+HELP2MAN = help2man --no-info --no-discard-stderr --version-string=$(UPSTREAM_VERSION)
+
+%:
+	dh $@ --buildsystem=pybuild
+
+execute_after_dh_auto_install:
+	# Imported modules, not programs: upstream's exec bit is noise here.
+	chmod a-x $(SITE)/ragnaros/*.py
+	# Images go to /usr/share; ragnaros.links points the package dir at them.
+	mkdir -p debian/ragnaros/usr/share/ragnaros
+	mv $(SITE)/ragnaros/assets debian/ragnaros/usr/share/ragnaros/assets
+
+execute_before_dh_installman:
+	mkdir -p debian/man debian/help2man-bin
+	for cmd in $(COMMANDS); do ln -sf ../help2man-run debian/help2man-bin/$$cmd; done
+	$(HELP2MAN) -n "run the Ragnaros deck daemon" -o debian/man/ragnarosd.1 debian/help2man-bin/ragnarosd
+	$(HELP2MAN) -n "drive a running ragnarosd from the shell" -o debian/man/ragnarosctl.1 debian/help2man-bin/ragnarosctl
+	$(HELP2MAN) -n "setup helpers for the Ragnaros deck daemon" -o debian/man/ragnaros.1 debian/help2man-bin/ragnaros
+	$(HELP2MAN) -n "download an opt-in GIF theme for the Ragnaros strip" -o debian/man/ragnaros-fetch-gifs.1 debian/help2man-bin/ragnaros-fetch-gifs
+	$(HELP2MAN) -n "Claude Code hook that tells the Ragnaros deck a session stopped" -o debian/man/ragnaros-claude-hook.1 debian/help2man-bin/ragnaros-claude-hook
+	$(HELP2MAN) -n "convert a GIF to the Ragnaros strip format" -o debian/man/ragnaros-strip-gif.1 debian/help2man-bin/ragnaros-strip-gif
+	$(HELP2MAN) -n "render the Ragnaros strip frames to a PNG" -o debian/man/ragnaros-preview-strip.1 debian/help2man-bin/ragnaros-preview-strip
+	$(HELP2MAN) -n "summarize Ragnaros deck usage from the usage log" -o debian/man/ragnaros-usage.1 debian/help2man-bin/ragnaros-usage
+
+# Upstream ships the daemon and the GIF refresh timer (which downloads from
+# Tenor) opt-in: each user enables them, as README.Debian says. Without
+# --no-enable, debhelper would enable both for every user.
+override_dh_installsystemduser:
+	dh_installsystemduser --no-enable
+
+execute_after_dh_clean:
+	rm -rf debian/man debian/help2man-bin

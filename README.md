@@ -54,6 +54,13 @@ sudo reboot
 systemctl --user enable --now ragnarosd
 ```
 
+### Debian source package
+
+`debian/` is a policy-compliant source package (pybuild, DEP-5 copyright, man pages,
+opt-in user units) for a Debian upload. It builds from a `+ds` repack of the release
+tarball without the app-logo key icons, which aren't DFSG-free; see
+`debian/README.source`. The release `.deb` above is still the nfpm one.
+
 ### Arch Linux (AUR)
 
 The PKGBUILD lives in `packaging/aur/` and builds from GitHub's tarball of the release tag:

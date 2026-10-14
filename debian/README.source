@@ -1,0 +1,16 @@
+ragnaros source for Debian
+==========================
+
+The upstream tarball is GitHub's tarball of the v<version> tag, repacked as
+<version>+ds without the files listed in Files-Excluded in debian/copyright:
+upstream's own debian/ directory (this one replaces it), key icons rendered
+from third-party application logos, and the Font Awesome font that only
+tools/gen_assets.py reads. uscan does the repack:
+
+    uscan --download-current-version
+
+The test suite runs against the source tree (tests/conftest.py imports
+ragnaros from there). debian/rules deselects the tests that require every
+icon a bundled profile names to exist, since the repack removes some of them.
+
+ -- Valentin Torassa <valentintorassacolombero@gmail.com>  Wed, 14 Oct 2026 14:42:59 -0300

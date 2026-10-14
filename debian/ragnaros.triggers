@@ -1,0 +1,3 @@
+# The usbhid quirk in /usr/lib/modprobe.d has to reach the initramfs, where
+# usbhid is usually loaded from.
+activate-noawait update-initramfs

@@ -1,0 +1,6 @@
+udev/70-ragnaros.rules usr/lib/udev/rules.d/
+udev/ragnaros-usbhid.conf usr/lib/modprobe.d/
+packaging/systemd/ragnarosd.service usr/lib/systemd/user/
+packaging/systemd/ragnaros-gif-refresh.service usr/lib/systemd/user/
+packaging/systemd/ragnaros-gif-refresh.timer usr/lib/systemd/user/
+packaging/appstream/io.github.valentintorassa.ragnaros.metainfo.xml usr/share/metainfo/

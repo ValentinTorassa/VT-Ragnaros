@@ -11,3 +11,12 @@ __pycache__/
 /packaging/aur/pkg/
 /packaging/aur/*.tar.gz
 /packaging/aur/*.pkg.tar.*
+# dpkg-buildpackage in the checkout
+/.pybuild/
+/debian/.debhelper/
+/debian/ragnaros/
+/debian/files
+/debian/*.substvars
+/debian/debhelper-build-stamp
+/debian/man/
+/debian/help2man-bin/

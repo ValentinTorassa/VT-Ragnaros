@@ -1,0 +1,32 @@
+ragnaros for Debian
+===================
+
+First use
+---------
+
+The modprobe option in /usr/lib/modprobe.d/ragnaros-usbhid.conf keeps usbhid
+off the deck so the daemon can claim it with libusb. usbhid usually loads from
+the initramfs, which the package refreshes through the update-initramfs
+trigger, so reboot once after the first install. Then, as the user who sits at
+the deck:
+
+    systemctl --user enable --now ragnarosd
+
+The daemon is not enabled for anyone by default: only users with the deck
+plugged in want it. ragnaros-gif-refresh.timer, which downloads GIF themes
+from Tenor, is opt-in the same way.
+
+Missing key icons
+-----------------
+
+The Debian package does not ship the key icons upstream renders from
+third-party application logos (Chrome, Discord, WhatsApp, VS Code and others;
+see debian/copyright). The bundled profiles still load, and the keys that name
+one of those icons stay blank. To fill them, put a PNG with the same relative
+path under ~/.local/share/ragnaros/ or ~/.config/ragnaros/assets/, for example:
+
+    ~/.local/share/ragnaros/icons/firefox.png
+
+ragnaros paths lists every directory the daemon reads.
+
+ -- Valentin Torassa <valentintorassacolombero@gmail.com>  Wed, 14 Oct 2026 14:42:59 -0300

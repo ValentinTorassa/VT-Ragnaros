@@ -1,0 +1,13 @@
+#!/bin/sh
+# help2man runs each command through a symlink to this script (see
+# debian/rules). Some --help texts print live paths, so the command runs from
+# the build tree with a neutral home, and the build path in its output becomes
+# the installed one: the man pages say what an installed ragnaros prints, the
+# same on every build.
+set -e
+site=$(cd debian/ragnaros/usr/lib/python3*/dist-packages && pwd -P)
+unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_RUNTIME_DIR RAGNAROS_CONFIG RAGNAROS_DATA
+HOME='~'
+PYTHONPATH=$site
+export HOME PYTHONPATH
+python3 "debian/ragnaros/usr/bin/${0##*/}" "$@" 2>&1 | sed "s#$site#/usr/lib/python3/dist-packages#g"

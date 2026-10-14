@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Lets software centers offer ragnaros when the deck (USB 0200:3001) is
+     plugged in. Installed by the Debian package to /usr/share/metainfo. -->
+<component type="driver">
+  <id>io.github.valentintorassa.ragnaros</id>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Ragnaros</name>
+  <summary>Driver and daemon for the Redragon SS552 Ragnaros USB control deck</summary>
+  <description>
+    <p>
+      A reverse-engineered userspace driver for the Redragon SS552 "Ragnaros"
+      control deck. Its daemon paints icons and animated GIFs on the deck's
+      ten LCD keys and four-panel touch strip, and runs a command for every
+      key, knob, tap and swipe, as mapped in YAML profiles.
+    </p>
+  </description>
+  <developer id="io.github.valentintorassa">
+    <name>Valentin Torassa</name>
+  </developer>
+  <url type="homepage">https://github.com/ValentinTorassa/VT-Ragnaros</url>
+  <url type="bugtracker">https://github.com/ValentinTorassa/VT-Ragnaros/issues</url>
+  <provides>
+    <modalias>usb:v0200p3001d*</modalias>
+  </provides>
+</component>

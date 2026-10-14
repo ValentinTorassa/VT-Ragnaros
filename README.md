@@ -2,7 +2,7 @@
 
 A reverse-engineered, from-scratch Linux driver and daemon for the **Ragnaros USB control deck** (Redragon SS552, USB `0200:3001`) - a Linux-native alternative to the vendor's Windows software.
 
-The daemon renders icons and animated GIFs onto the deck's LCD keys and touch strip, and executes configurable shell commands on every input event.
+The daemon renders icons and animated GIFs onto the deck's LCD keys and touch strip, and runs a configurable command on every input event.
 
 ## Features
 
@@ -15,7 +15,7 @@ The daemon renders icons and animated GIFs onto the deck's LCD keys and touch st
 - **Hot profile switching** from a key, a swipe or the CLI
 - **`ragnarosctl`** - a control socket for scripts, shortcuts and CI
 - **Desktop aware** - toasts on the strip, and the deck goes dark when the session locks
-- **YAML keymap profiles** mapping any input to a shell command
+- **YAML keymap profiles** mapping any input to a command or a deck verb
 - Runs as a **systemd user service**
 
 ## How It Works
@@ -31,7 +31,7 @@ ragnaros/daemon.py ──> protocol.py ──(ctypes / libusb-1.0)──> Ragnar
      │                     JPEG frames in 1024-byte chunks to display slots
      ├── renderer.py ── PIL: icons / GIFs -> JPEG
      ├── inputmap.py ── HID input reports -> key / knob / strip events
-     └── profiles/*.yaml ── events -> shell commands
+     └── profiles/*.yaml ── events -> commands
 ```
 
 - Output: images sent as JPEG payloads over bulk endpoint with a `CRT` command header; keys map to display slots 5-14, strip segments to 0-3 (content rotated 180°)
@@ -150,9 +150,14 @@ knobs:
     press: wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
 ```
 
-Keys accept `action` (a shell command or a deck verb), `profile` (hot switch),
+Keys accept `action` (a command or a deck verb), `profile` (hot switch),
 `layer` (momentary while held) or `layer_toggle`. The deck verbs are `pomodoro`,
 `dashboard[:cards]`, `obs:*`, `profile:<name>` and `layer:<name>`.
+
+Commands run without a shell: the line is split the way a shell splits words
+(quotes work) and started directly, so pipes, `&&`, redirections and `$VARS` are
+passed through as plain arguments. Wrap those in `sh -c '...'`. A `~` at the start
+of an argument, or right after `--option=`, expands to your home directory.
 
 `action: dashboard:cpu,ram,temp,gpu` pins that set of cards on the strip; pressing
 the same key again puts the strip back. `strip.pinned: dashboard` does it for a

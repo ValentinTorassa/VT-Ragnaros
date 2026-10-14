@@ -335,3 +335,37 @@ def test_control_alert_and_watch_commands():
     assert reply["_stream"] == {"grab": True}
     assert deck.handle_control(["alert", "--clear"])["cleared"] is True
     assert deck.alert is None
+
+
+def started(monkeypatch, action):
+    """The argv run_action hands to Popen for one action."""
+    calls = []
+    monkeypatch.setattr(ragnarosd.subprocess, "Popen",
+                        lambda argv, **kw: calls.append(argv))
+    ragnarosd.run_action(action)
+    return calls
+
+
+def test_actions_expand_home_without_a_shell(monkeypatch):
+    monkeypatch.setenv("HOME", "/home/deck")
+    assert started(monkeypatch, "ghostty --working-directory=~/proyectos/trabajo") == [
+        ["ghostty", "--working-directory=/home/deck/proyectos/trabajo"]]
+    assert started(monkeypatch, "xdg-open ~/Documentos") == [
+        ["xdg-open", "/home/deck/Documentos"]]
+    assert started(monkeypatch, "notify-send 'a~b' key=~/x") == [
+        ["notify-send", "a~b", "key=~/x"]]  # only --option=~, not any =~
+
+
+def test_actions_are_not_run_through_a_shell(monkeypatch):
+    assert started(monkeypatch, "echo $HOME | wc -c") == [
+        ["echo", "$HOME", "|", "wc", "-c"]]
+    assert started(monkeypatch, "sh -c 'echo $HOME | wc -c'") == [
+        ["sh", "-c", "echo $HOME | wc -c"]]
+
+
+def test_the_work_profile_paths_reach_ghostty_expanded(monkeypatch):
+    monkeypatch.setenv("HOME", "/home/deck")
+    keys = ragnarosd.load_profile("work")["keys"]
+    for key in ("0", "1"):
+        (argv,) = started(monkeypatch, keys[key]["action"])
+        assert argv[1].startswith("--working-directory=/home/deck/proyectos/")

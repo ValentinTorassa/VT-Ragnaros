@@ -108,7 +108,21 @@ def validate_profile(profile):
     return issues
 
 
+def expand_home(arg):
+    """Expand ~ where a profile would expect it, since no shell runs actions:
+    at the start of an argument, or right after the = of --option=~/path."""
+    if arg.startswith("~"):
+        return os.path.expanduser(arg)
+    option, eq, value = arg.partition("=")
+    if eq and option.startswith("-") and value.startswith("~"):
+        return f"{option}={os.path.expanduser(value)}"
+    return arg
+
+
 def run_action(action):
+    """Start one action, or each of a list, directly: shlex splits it like a
+    shell would, but no shell runs it, so pipes, &&, redirections and $VARS
+    are not interpreted (wrap those in sh -c '...')."""
     if not action:
         return
     if isinstance(action, list):
@@ -117,7 +131,7 @@ def run_action(action):
         return
     try:
         subprocess.Popen(
-            shlex.split(action),
+            [expand_home(arg) for arg in shlex.split(action)],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,

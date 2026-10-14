@@ -1,18 +1,14 @@
 """ragnarosd: paints the deck and runs a profile's actions on every input."""
-import hashlib
 import json
 import os
 import shlex
 import subprocess
 import sys
 import time
-import urllib.parse
-import urllib.request
 
 import yaml
-from PIL import Image
 
-from . import control, dbuswatch, metrics, paths, protocol, renderer, theme
+from . import art, control, dbuswatch, metrics, paths, protocol, renderer, theme
 
 try:
     from . import obsclient
@@ -173,8 +169,8 @@ class Deck:
         self._loop_cache = {}
         self._icon_cache = {}
         self._last_toast = ("", 0.0)
-        self._art_url = None
-        self._art_img = None
+        # album art is fetched off this loop; see ragnaros/art.py
+        self.art = art.ArtLoader(os.path.join(STATE_DIR, "ragnaros", "art"))
         self._profile_mtime = self._mtime()
         self.theme = theme.load()
         self._theme_mtime = theme.mtime()
@@ -780,31 +776,8 @@ class Deck:
         return None
 
     def _load_art(self, url):
-        if not url:
-            return None
-        if url == self._art_url:
-            return self._art_img
-        self._art_url = url
-        self._art_img = None
-        try:
-            if url.startswith("file://"):
-                path = urllib.parse.unquote(url[7:])
-            elif url.startswith(("http://", "https://")):
-                cache_dir = os.path.join(STATE_DIR, "ragnaros", "art")
-                os.makedirs(cache_dir, exist_ok=True)
-                path = os.path.join(
-                    cache_dir, hashlib.sha1(url.encode()).hexdigest())
-                if not os.path.exists(path):
-                    urllib.request.urlretrieve(url, path)
-            else:
-                return None
-            if path and os.path.exists(path):
-                with Image.open(path) as img:
-                    self._art_img = img.copy()
-        except Exception as error:
-            print(f"ragnaros: album art load failed: {error}", file=sys.stderr)
-            self._art_img = None
-        return self._art_img
+        """The cover for url once a worker has it; None (no cover) until then."""
+        return self.art.get(url)
 
     def repaint_obs(self):
         if not self.obs_keys:
@@ -952,10 +925,10 @@ class Deck:
     def push_now_playing(self, now):
         player = self.player
         elapsed = player["position"] + (now - player["ts"])
-        art = self._load_art(player.get("art"))
+        cover = self._load_art(player.get("art"))
         frame = renderer.now_playing_strip(
             player["title"], player["artist"], min(elapsed, player["length"] or elapsed),
-            player["length"], self.STRIP_FULL, art)
+            player["length"], self.STRIP_FULL, cover)
         self.push_strip_frame(frame)
 
     # -- desktop events ------------------------------------------------------

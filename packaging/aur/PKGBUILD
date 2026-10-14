@@ -36,7 +36,7 @@ optdepends=('playerctl: media knobs and the now-playing strip'
             'libnotify: pomodoro and OBS notices (notify-send)')
 install=ragnaros.install
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('SKIP')  # filled once the tag is pushed: see the top of this file
+sha256sums=('2f0c114b278c096ad4771f25db8e0f2c5ad41052a0f7b1346c87e104433897bb')
 
 build() {
   cd "VT-Ragnaros-$pkgver"

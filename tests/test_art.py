@@ -21,6 +21,15 @@ def png_bytes(color=(200, 30, 30), size=(64, 64)):
 COVER = png_bytes()
 
 
+@pytest.fixture(autouse=True)
+def direct_loopback(monkeypatch):
+    """The test server is on 127.0.0.1: reach it directly even where the
+    environment sets a proxy (Debian's pybuild points http_proxy at a dead
+    port so builds can't touch the network)."""
+    for name in ("no_proxy", "NO_PROXY"):
+        monkeypatch.setenv(name, "127.0.0.1,localhost")
+
+
 @pytest.fixture
 def server():
     release = threading.Event()

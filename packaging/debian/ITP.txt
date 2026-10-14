@@ -1,0 +1,65 @@
+DRAFT - not sent. Filing it is the maintainer's decision.
+
+When it is filed (reportbug wnpp, or mail to submit@bugs.debian.org), add
+"(Closes: #<bug>)" to the first entry of debian/changelog: that is the one
+lintian warning the package still has (initial-upload-closes-no-bugs).
+
+-----------------------------------------------------------------------------
+
+To: submit@bugs.debian.org
+Subject: ITP: ragnaros -- driver and daemon for the Ragnaros (Redragon SS552) USB control deck
+
+Package: wnpp
+Severity: wishlist
+Owner: Valentin Torassa <valentintorassacolombero@gmail.com>
+X-Debbugs-Cc: debian-devel@lists.debian.org
+
+* Package name    : ragnaros
+  Version         : 0.1.1
+  Upstream Contact: Valentin Torassa <valentintorassacolombero@gmail.com>
+* URL             : https://github.com/ValentinTorassa/VT-Ragnaros
+* License         : Expat; key icons CC-BY-4.0 (Font Awesome Free glyphs)
+  Programming Lang: Python
+  Description     : driver and daemon for the Ragnaros (Redragon SS552) USB control deck
+
+ Ragnaros is a reverse-engineered userspace driver for the Redragon SS552
+ "Ragnaros" control deck (USB 0200:3001), which speaks the Mirabox/Ajazz
+ Stream Dock protocol. Its daemon paints icons and animated GIFs on the
+ deck's ten LCD keys and four-panel touch strip through libusb, and runs a
+ command for every key, knob, tap and swipe, as mapped in YAML profiles.
+ .
+ The strip shows what is playing, a system dashboard, desktop notifications
+ or idle animations. Profiles can switch from a key, a swipe or the
+ ragnarosctl control socket, and the deck goes dark when the session locks.
+ .
+ The package installs udev rules that let the logged-in user open the deck,
+ a modprobe option that keeps usbhid off it, and systemd user units that each
+ user enables on their own.
+
+Why it is useful: the vendor ships Windows-only software, so on Linux the
+deck is a blank USB device without it. The protocol is the Mirabox/Ajazz
+"Stream Dock" one, shared with decks such as the Mirabox N4 and Ajazz AKP05;
+the driver supports the SS552 today.
+
+Similar packages: streamdeck-ui and python3-elgato-streamdeck drive Elgato
+Stream Deck hardware, which uses a different protocol; neither talks to
+Mirabox/Ajazz decks.
+
+Dependencies: python3-pil, python3-yaml, libusb-1.0-0 and fonts-dejavu-core,
+all in Debian. It is not a dependency of another package.
+
+Upstream status: the author is upstream and uses it daily. Releases are
+tagged on GitHub (v0.1.0 so far, v0.1.1 prepared); the tests (about 200)
+run in GitHub Actions. A debian/ directory is maintained in the upstream
+repository; it builds with dpkg-buildpackage in a clean trixie environment,
+and lintian (pedantic) reports only initial-upload-closes-no-bugs.
+
+DFSG: upstream's tag tarball includes key icons rendered from third-party
+application logos (Chrome, Discord, WhatsApp, VS Code and others) and the
+Font Awesome font file. The Debian upload is repacked as +ds without them
+(Files-Excluded in debian/copyright); the remaining icons are rendered from
+Font Awesome Free glyphs, under CC BY 4.0.
+
+Maintenance: [to decide before filing: maintained alone or in a team such
+as the Debian Python Team, and the sponsor route (mentors.debian.net) if the
+uploader is not a Debian Developer.]

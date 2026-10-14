@@ -44,7 +44,7 @@ after the first install, so `usbhid` loads with the deck's quirk and lets libusb
 
 ### Debian / Ubuntu (.deb)
 
-Every `v*` tag builds `ragnaros_<version>-1_all.deb` (`ragnaros_0.1.0-1_all.deb` for v0.1.0)
+Every `v*` tag builds `ragnaros_<version>-1_all.deb` (`ragnaros_0.1.1-1_all.deb` for v0.1.1)
 and attaches it to the [releases](https://github.com/ValentinTorassa/VT-Ragnaros/releases) page
 (`packaging/deb/build-deb.sh` builds it locally from a wheel, with [nfpm](https://nfpm.goreleaser.com)):
 

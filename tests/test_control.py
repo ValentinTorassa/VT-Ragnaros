@@ -25,6 +25,7 @@ def test_request_round_trip(tmp_path):
             server.serve(handler)
             if replies:
                 break
+            time.sleep(0.01)  # up to 2s for the client thread to connect
         client.join(2)
         assert seen == [["toast", "hola mundo"]]
         assert replies == [{"ok": True, "echo": ["toast", "hola mundo"]}]
@@ -47,6 +48,7 @@ def test_handler_errors_come_back_as_a_reply(tmp_path):
             server.serve(lambda argv: 1 / 0)
             if replies:
                 break
+            time.sleep(0.01)
         client.join(2)
         assert replies and replies[0]["ok"] is False
         assert "division" in replies[0]["error"]

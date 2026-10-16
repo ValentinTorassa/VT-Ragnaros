@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use VT-Ragnaros, please cite this software."
+type: software
+title: VT-Ragnaros
+abstract: "Reverse-engineered Linux driver and daemon for the Ragnaros (Redragon SS552) USB control deck."
+authors:
+  - given-names: Valentín
+    family-names: Torassa Colombero
+repository-code: "https://github.com/ValentinTorassa/VT-Ragnaros"
+license: MIT
+keywords:
+  - Linux
+  - Redragon SS552
+  - USB control deck

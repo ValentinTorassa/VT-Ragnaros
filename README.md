@@ -334,3 +334,7 @@ The user-facing tools are installed as commands (table above). The checkout also
 ## License
 
 MIT - see [LICENSE](LICENSE).
+
+## Citation
+
+To cite this software, use the metadata in [CITATION.cff](CITATION.cff).

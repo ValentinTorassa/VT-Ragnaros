@@ -6,6 +6,7 @@ abstract: "Reverse-engineered Linux driver and daemon for the Ragnaros (Redragon
 authors:
   - given-names: Valentín
     family-names: Torassa Colombero
+    orcid: "https://orcid.org/0009-0005-7980-4128"
 repository-code: "https://github.com/ValentinTorassa/VT-Ragnaros"
 license: MIT
 keywords:

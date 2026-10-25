@@ -34,7 +34,7 @@ ragnaros/daemon.py ──> protocol.py ──(ctypes / libusb-1.0)──> Ragnar
      └── profiles/*.yaml ── events -> commands
 ```
 
-- Output: images sent as JPEG payloads over bulk endpoint with a `CRT` command header; keys map to display slots 5-14, strip segments to 0-3 (content rotated 180°)
+- Output: images sent as JPEG payloads over the interrupt OUT endpoint `0x03` (1024-byte packets) with a `CRT` command header; keys map to display slots 5-14, strip segments to 0-3 (content rotated 180°)
 - Input: reports polled from EP `0x82`, decoded into `key`, `knob`, `knob_press`, `strip_touch`, and `strip_swipe` events
 
 ## Installation

@@ -1,11 +1,17 @@
 import ctypes
 import ctypes.util
+import os
+import sys
 import time
 
 from .inputmap import parse_input
 
 VID = 0x0200
 PID = 0x3001
+# Opt-in only: another product ID under the same vendor, driven with the
+# SS552 protocol so an owner of an untested deck can see what works.
+EXPERIMENTAL_ENV = "RAGNAROS_EXPERIMENTAL_PID"
+LIBUSB_ERROR_NOT_FOUND = -5
 PACKET_SIZE = 1024
 READ_SIZE = 512
 
@@ -23,7 +29,37 @@ STRIP_TO_SLOT = {0: 0, 1: 1, 2: 2, 3: 3}
 CRT = (0x43, 0x52, 0x54)
 
 
-def activate_input():
+def parse_pid(text):
+    """A product ID under vendor 0200, in hex: '0x2000', '2000' or '0200:2000'."""
+    vendor, sep, product = str(text).strip().lower().rpartition(":")
+    try:
+        vid = int(vendor, 16) if sep else VID
+        pid = int(product, 16)
+    except ValueError:
+        raise ValueError(f"not a USB product ID: {text!r} (hex, e.g. 0x2000)") from None
+    if vid != VID:
+        raise ValueError(f"only vendor {VID:04x} devices can be tried, not {vid:04x}")
+    if not 0 < pid <= 0xFFFF:
+        raise ValueError(f"not a USB product ID: {text!r} (hex, e.g. 0x2000)")
+    return pid
+
+
+def product_ids(experimental=None):
+    """Product IDs to open, in order: the SS552, then the untested one a
+    tester opted into (--experimental-pid, else $RAGNAROS_EXPERIMENTAL_PID)."""
+    if experimental is None:
+        experimental = os.environ.get(EXPERIMENTAL_ENV, "")
+    if not str(experimental).strip():
+        return (PID,)
+    pid = parse_pid(experimental)
+    return (PID,) if pid == PID else (PID, pid)
+
+
+def device_id(pid):
+    return f"{VID:04x}:{pid:04x}"
+
+
+def activate_input(pids=(PID,)):
     library = ctypes.util.find_library("usb-1.0")
     if not library:
         raise RuntimeError("libusb-1.0 is required to activate Ragnaros input")
@@ -67,12 +103,21 @@ def activate_input():
         raise RuntimeError(f"libusb initialization failed ({result})")
 
     handle = None
+    pid = None
     detached = []
     claimed = []
     try:
-        handle = usb.libusb_open_device_with_vid_pid(context, VID, PID)
+        for pid in pids:
+            handle = usb.libusb_open_device_with_vid_pid(context, VID, pid)
+            if handle:
+                break
         if not handle:
-            raise RuntimeError("cannot open Ragnaros USB device; check udev permissions")
+            if tuple(pids) == (PID,):
+                raise RuntimeError("cannot open Ragnaros USB device; check udev permissions")
+            raise RuntimeError(
+                f"cannot open {' or '.join(device_id(p) for p in pids)}: not plugged in, "
+                "or no permission (`ragnaros diagnose` shows the device node)")
+        experimental = pid != PID
         for interface in (0, 1):
             if usb.libusb_kernel_driver_active(handle, interface) == 1:
                 result = usb.libusb_detach_kernel_driver(handle, interface)
@@ -81,6 +126,8 @@ def activate_input():
                 detached.append(interface)
         for interface in (0, 1):
             result = usb.libusb_claim_interface(handle, interface)
+            if result == LIBUSB_ERROR_NOT_FOUND and experimental and interface:
+                continue  # an untested deck may have a single interface
             if result < 0:
                 raise RuntimeError(f"cannot claim HID interface {interface} ({result})")
             claimed.append(interface)
@@ -93,13 +140,18 @@ def activate_input():
             usb.libusb_close(handle)
         usb.libusb_exit(context)
         raise
-    return usb, context, handle, detached, claimed
+    return usb, context, handle, detached, claimed, pid
 
 
 class Ragnaros:
-    def __init__(self):
-        self.usb, self.context, self.handle, self.detached, self.claimed = activate_input()
-        self.path = f"libusb:{VID:04x}:{PID:04x}"
+    pid = PID
+    experimental = False  # an untested product ID, opened on request
+
+    def __init__(self, pids=(PID,)):
+        (self.usb, self.context, self.handle, self.detached, self.claimed,
+         self.pid) = activate_input(pids)
+        self.experimental = self.pid != PID
+        self.path = f"libusb:{device_id(self.pid)}"
         self._initialized = False
 
     def close(self):
@@ -254,4 +306,8 @@ class Ragnaros:
         data = self.transfer(0x82, bytes(READ_SIZE), timeout)
         if data is None:
             return None
+        if self.experimental:
+            # the raw report, so a tester can show what an unknown deck sends
+            print(f"ragnaros: experimental input ({len(data)} bytes): "
+                  f"{data.rstrip(bytes(1))[:64].hex(' ')}", file=sys.stderr)
         return parse_input(data)

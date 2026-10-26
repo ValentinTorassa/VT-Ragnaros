@@ -373,7 +373,7 @@ def test_gif_tools_write_what_the_panels_show():
 class RecordingDev:
     """Stands in for protocol.Ragnaros and keeps the last image per slot."""
 
-    def __init__(self):
+    def __init__(self, pids=None):
         self.keys, self.strip = {}, {}
 
     def send_image(self, slot, data, strip=False):

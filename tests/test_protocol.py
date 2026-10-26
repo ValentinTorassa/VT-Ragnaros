@@ -1,3 +1,7 @@
+import types
+
+import pytest
+
 from ragnaros import protocol
 
 
@@ -81,3 +85,104 @@ def test_send_image_rejects_unknown_key():
         pass
     else:
         raise AssertionError("expected ValueError for unknown key")
+
+
+# -- opt-in untested product IDs ------------------------------------------------
+def test_parse_pid_accepts_the_usual_spellings():
+    assert protocol.parse_pid("0x2000") == 0x2000
+    assert protocol.parse_pid("2000") == 0x2000
+    assert protocol.parse_pid(" 0200:2000 ") == 0x2000
+    for bad in ("", "zz", "0x10000", "0", "046d:c08c"):
+        with pytest.raises(ValueError):
+            protocol.parse_pid(bad)
+
+
+def test_only_the_ss552_unless_a_tester_opts_in(monkeypatch):
+    monkeypatch.delenv(protocol.EXPERIMENTAL_ENV, raising=False)
+    assert protocol.product_ids() == (0x3001,)
+    monkeypatch.setenv(protocol.EXPERIMENTAL_ENV, "0x2000")
+    assert protocol.product_ids() == (0x3001, 0x2000)
+    assert protocol.product_ids("0x1000") == (0x3001, 0x1000)  # the flag wins
+    assert protocol.product_ids("3001") == (0x3001,)
+    monkeypatch.setenv(protocol.EXPERIMENTAL_ENV, "  ")
+    assert protocol.product_ids() == (0x3001,)
+
+
+def fake_libusb(monkeypatch, present, interfaces=(0, 1)):
+    """Enough of libusb-1.0 for activate_input(): which PIDs are plugged in and
+    which interfaces they have. Records the calls that touch a device."""
+    calls = []
+
+    def open_device(context, vid, pid):
+        calls.append(("open", vid, pid))
+        return 1 if pid in present else None
+
+    def claim(handle, interface):
+        if interface not in interfaces:
+            return protocol.LIBUSB_ERROR_NOT_FOUND
+        calls.append(("claim", interface))
+        return 0
+
+    usb = types.SimpleNamespace(
+        libusb_init=lambda context: 0,
+        libusb_open_device_with_vid_pid=open_device,
+        libusb_kernel_driver_active=lambda handle, interface: 0,
+        libusb_detach_kernel_driver=lambda handle, interface: 0,
+        libusb_claim_interface=claim,
+        libusb_release_interface=lambda handle, interface: calls.append(("release", interface)),
+        libusb_attach_kernel_driver=lambda handle, interface: 0,
+        libusb_control_transfer=lambda *args: 0,
+        libusb_interrupt_transfer=lambda *args: 0,
+        libusb_close=lambda handle: calls.append(("close",)),
+        libusb_exit=lambda context: None,
+    )
+    monkeypatch.setattr(protocol.ctypes.util, "find_library", lambda name: "libusb-1.0.so.0")
+    monkeypatch.setattr(protocol.ctypes, "CDLL", lambda name: usb)
+    return calls
+
+
+def test_the_default_opens_only_the_ss552(monkeypatch):
+    calls = fake_libusb(monkeypatch, present={0x3001, 0x2000})
+    dev = protocol.Ragnaros()
+    assert [c for c in calls if c[0] == "open"] == [("open", 0x0200, 0x3001)]
+    assert (dev.pid, dev.experimental, dev.path) == (0x3001, False, "libusb:0200:3001")
+
+
+def test_the_default_error_is_unchanged(monkeypatch):
+    fake_libusb(monkeypatch, present={0x2000})
+    with pytest.raises(RuntimeError, match="cannot open Ragnaros USB device"):
+        protocol.Ragnaros()
+
+
+def test_an_opted_in_pid_is_tried_after_the_ss552(monkeypatch):
+    calls = fake_libusb(monkeypatch, present={0x2000}, interfaces=(0,))
+    dev = protocol.Ragnaros((0x3001, 0x2000))
+    assert [c for c in calls if c[0] == "open"] == [("open", 0x0200, 0x3001),
+                                                     ("open", 0x0200, 0x2000)]
+    assert (dev.pid, dev.experimental, dev.path) == (0x2000, True, "libusb:0200:2000")
+    assert dev.claimed == [0]  # a single-interface deck is still worth a try
+
+
+def test_a_missing_interface_still_fails_the_ss552(monkeypatch):
+    calls = fake_libusb(monkeypatch, present={0x3001}, interfaces=(0,))
+    with pytest.raises(RuntimeError, match="cannot claim HID interface 1"):
+        protocol.Ragnaros((0x3001, 0x2000))
+    assert ("release", 0) in calls and ("close",) in calls
+
+
+def test_nothing_to_open_names_both_ids(monkeypatch):
+    fake_libusb(monkeypatch, present=set())
+    with pytest.raises(RuntimeError, match="0200:3001 or 0200:2000.*ragnaros diagnose"):
+        protocol.Ragnaros((0x3001, 0x2000))
+
+
+def test_experimental_input_is_logged_raw(capsys):
+    report = b"ACK\x00\x00OK\x00\x00\x0b\x01" + bytes(501)
+    dev = make_dev()
+    dev.transfer = lambda endpoint, payload, timeout: report
+    assert dev.poll() == ("unknown", 0x0B, 1)
+    assert capsys.readouterr().err == ""
+    dev.experimental = True
+    dev.poll()
+    err = capsys.readouterr().err
+    assert "experimental input (512 bytes): 41 43 4b 00 00 4f 4b 00 00 0b 01\n" in err

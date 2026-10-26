@@ -141,8 +141,12 @@ def run_action(action):
 
 
 class Deck:
-    def __init__(self):
+    pids = (protocol.PID,)  # product IDs to open, in order
+    experimental_id = None  # "0200:2000" while driving an untested product ID
+
+    def __init__(self, pids=(protocol.PID,)):
         self.dev = None
+        self.pids = tuple(pids)
         self._wait_for_device()
         self.profile = load_profile(saved_profile_name())
         self.last_activity = time.monotonic()
@@ -199,9 +203,13 @@ class Deck:
         announced = False
         while True:
             try:
-                self.dev = protocol.Ragnaros()
+                self.dev = protocol.Ragnaros(self.pids)
                 if announced:
                     print("ragnaros: device attached, resuming", file=sys.stderr)
+                if getattr(self.dev, "experimental", False):
+                    self.experimental_id = protocol.device_id(self.dev.pid)
+                    print(f"ragnaros: EXPERIMENTAL: opened untested device "
+                          f"{self.experimental_id} with the SS552 protocol", file=sys.stderr)
                 return
             except RuntimeError as error:
                 if "libusb-1.0 is required" in str(error):
@@ -1017,17 +1025,20 @@ class Deck:
             return {"ok": False, "error": "empty command"}
         command, args = argv[0], argv[1:]
         if command in ("status", "state"):
-            return {"ok": True, "profile": self.profile.get("_name"),
-                    "profiles": available_profiles(),
-                    "layer": self.layer or "base", "layers": sorted(self.layers()),
-                    "strip": self.strip_state(), "brightness": self.brightness,
-                    "locked": self.locked, "dashboard": self.pinned == "dashboard",
-                    "player": self.player and {k: self.player[k]
-                                               for k in ("title", "artist", "length")},
-                    "alert": self.alert and self.alert["summary"],
-                    "watchers": len(self.control.subscribers) if self.control else 0,
-                    "pomodoro": self.pomo and self.pomo["phase"],
-                    "obs": self.obs_state}
+            reply = {"ok": True, "profile": self.profile.get("_name"),
+                      "profiles": available_profiles(),
+                      "layer": self.layer or "base", "layers": sorted(self.layers()),
+                      "strip": self.strip_state(), "brightness": self.brightness,
+                      "locked": self.locked, "dashboard": self.pinned == "dashboard",
+                      "player": self.player and {k: self.player[k]
+                                                 for k in ("title", "artist", "length")},
+                      "alert": self.alert and self.alert["summary"],
+                      "watchers": len(self.control.subscribers) if self.control else 0,
+                      "pomodoro": self.pomo and self.pomo["phase"],
+                      "obs": self.obs_state}
+            if self.experimental_id:
+                reply["experimental"] = f"{self.experimental_id} (untested, SS552 protocol)"
+            return reply
         if command in ("profile", "profiles"):
             if not args or args[0] == "list":
                 return {"ok": True, "profiles": available_profiles(),
@@ -1164,23 +1175,49 @@ class Deck:
             self.dev.close()
 
 
+def experimental_arg(argv):
+    """The value of --experimental-pid X / --experimental-pid=X, or None."""
+    for i, arg in enumerate(argv):
+        if arg == "--experimental-pid":
+            if i + 1 >= len(argv):
+                raise ValueError("--experimental-pid needs a product ID, e.g. 0x2000")
+            return argv[i + 1]
+        if arg.startswith("--experimental-pid="):
+            return arg.partition("=")[2]
+    return None
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     if argv and argv[0] in ("-h", "--help"):
-        print("usage: ragnarosd\n\n"
+        print("usage: ragnarosd [--experimental-pid PID]\n\n"
               "Run the Ragnaros deck daemon in the foreground (normally started by\n"
               "the ragnarosd.service systemd user unit).\n\n"
+              "  --experimental-pid PID  also open the untested vendor-0200 deck PID\n"
+              "                          (hex, e.g. 0x2000) with the SS552 protocol;\n"
+              "                          for testing only, see `ragnaros diagnose`\n\n"
               f"  profiles  {', '.join(paths.profile_dirs())}\n"
               f"  assets    {', '.join(paths.asset_roots())}\n"
               f"  control   {control.socket_path()}  (drive it with ragnarosctl)\n\n"
               "Environment: RAGNAROS_CONFIG, RAGNAROS_DATA, RAGNAROS_IDLE_SECONDS,\n"
-              "RAGNAROS_IDLE_FACE_SECONDS, RAGNAROS_USAGE_LOG, RAGNAROS_NO_KEEPALIVE")
+              "RAGNAROS_IDLE_FACE_SECONDS, RAGNAROS_USAGE_LOG, RAGNAROS_NO_KEEPALIVE,\n"
+              f"{protocol.EXPERIMENTAL_ENV} (same as --experimental-pid)")
         return 0
     if argv and argv[0] == "--version":
         from . import __version__
         print(f"ragnarosd {__version__}")
         return 0
-    Deck().run()
+    try:
+        pids = protocol.product_ids(experimental_arg(argv))
+    except ValueError as error:
+        print(f"ragnarosd: {error}", file=sys.stderr)
+        return 2
+    for pid in pids[1:]:
+        print(f"ragnaros: EXPERIMENTAL: also accepting {protocol.device_id(pid)}, which is "
+              "untested, and driving it with the SS552 protocol. Keys, knobs and the strip "
+              "may not line up. Please report what works in "
+              "https://github.com/ValentinTorassa/VT-Ragnaros/issues", file=sys.stderr)
+    Deck(pids).run()
     return 0
 
 

@@ -15,10 +15,11 @@ class FakeDev:
 
 
 def test_wait_for_device_retries_until_present(monkeypatch):
-    calls = {"n": 0}
+    calls = {"n": 0, "pids": []}
 
-    def flaky():
+    def flaky(pids):
         calls["n"] += 1
+        calls["pids"].append(pids)
         if calls["n"] < 3:
             raise RuntimeError("cannot open Ragnaros USB device; check udev permissions")
         return FakeDev()
@@ -27,11 +28,13 @@ def test_wait_for_device_retries_until_present(monkeypatch):
     monkeypatch.setattr(ragnarosd.time, "sleep", lambda s: None)
     deck = ragnarosd.Deck()
     assert calls["n"] == 3
+    assert calls["pids"] == [(0x3001,)] * 3  # only the SS552 unless asked
     assert isinstance(deck.dev, FakeDev)
+    assert deck.experimental_id is None
     deck.dev.close()
 
 def test_wait_for_device_exits_without_libusb(monkeypatch):
-    def broken():
+    def broken(pids):
         raise RuntimeError("libusb-1.0 is required to activate Ragnaros input")
 
     monkeypatch.setattr(ragnarosd.protocol, "Ragnaros", broken)
@@ -43,8 +46,69 @@ def test_wait_for_device_exits_without_libusb(monkeypatch):
         raise AssertionError("expected SystemExit when libusb is missing")
 
 
+def test_an_untested_device_is_marked_experimental(monkeypatch, capsys):
+    class UntestedDev(FakeDev):
+        pid = 0x2000
+        experimental = True
+
+    monkeypatch.setattr(ragnarosd.protocol, "Ragnaros", lambda pids: UntestedDev())
+    deck = ragnarosd.Deck((0x3001, 0x2000))
+    assert deck.experimental_id == "0200:2000"
+    assert "EXPERIMENTAL: opened untested device 0200:2000" in capsys.readouterr().err
+
+
+@pytest.fixture
+def decks_built(monkeypatch):
+    """main() up to the point it builds the Deck: which product IDs it got."""
+    built = []
+
+    class StubDeck:
+        def __init__(self, pids):
+            built.append(pids)
+
+        def run(self):
+            pass
+
+    monkeypatch.setattr(ragnarosd, "Deck", StubDeck)
+    monkeypatch.delenv(ragnarosd.protocol.EXPERIMENTAL_ENV, raising=False)
+    return built
+
+
+def test_main_opens_only_the_ss552_by_default(decks_built, capsys):
+    assert ragnarosd.main([]) == 0
+    assert decks_built == [(0x3001,)]
+    assert "EXPERIMENTAL" not in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("argv", [["--experimental-pid", "0x2000"],
+                                  ["--experimental-pid=2000"]])
+def test_main_takes_an_experimental_pid(decks_built, capsys, argv):
+    assert ragnarosd.main(argv) == 0
+    assert decks_built == [(0x3001, 0x2000)]
+    assert "EXPERIMENTAL: also accepting 0200:2000" in capsys.readouterr().err
+
+
+def test_main_reads_the_experimental_pid_from_the_environment(decks_built, monkeypatch):
+    monkeypatch.setenv(ragnarosd.protocol.EXPERIMENTAL_ENV, "0x2000")
+    assert ragnarosd.main([]) == 0
+    assert decks_built == [(0x3001, 0x2000)]
+
+
+@pytest.mark.parametrize("argv", [["--experimental-pid", "nope"], ["--experimental-pid"]])
+def test_main_refuses_a_bad_experimental_pid(decks_built, capsys, argv):
+    assert ragnarosd.main(argv) == 2
+    assert decks_built == []
+    assert "ragnarosd:" in capsys.readouterr().err
+
+
+def test_help_documents_the_experimental_pid(capsys):
+    assert ragnarosd.main(["--help"]) == 0
+    out = capsys.readouterr().out
+    assert "--experimental-pid" in out and "RAGNAROS_EXPERIMENTAL_PID" in out
+
+
 def test_reconnect_uses_wait_loop(monkeypatch):
-    monkeypatch.setattr(ragnarosd.protocol, "Ragnaros", lambda: FakeDev())
+    monkeypatch.setattr(ragnarosd.protocol, "Ragnaros", lambda pids: FakeDev())
     monkeypatch.setattr(ragnarosd.time, "sleep", lambda s: None)
 
     class BareDeck(ragnarosd.Deck):
@@ -276,6 +340,10 @@ def test_control_status_and_errors(monkeypatch):
     deck = bare_deck(PROFILE)
     status = deck.handle_control(["status"])
     assert status["ok"] and status["layer"] == "base" and status["strip"] == "keys"
+    assert "experimental" not in status
+    deck.experimental_id = "0200:2000"
+    assert deck.handle_control(["status"])["experimental"].startswith("0200:2000 (untested")
+    deck.experimental_id = None
     assert deck.handle_control([])["ok"] is False
     assert deck.handle_control(["nonsense"])["ok"] is False
     assert deck.handle_control(["profile", "ghost"])["ok"] is False

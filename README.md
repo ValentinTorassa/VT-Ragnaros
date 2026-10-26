@@ -90,7 +90,7 @@ All three install the same commands:
 |---|---|
 | `ragnarosd` | the daemon (run by the `ragnarosd` user unit) |
 | `ragnarosctl` | drive the running daemon (see [Control CLI](#control-cli)) |
-| `ragnaros` | `install-system`, `install-service`, `paths` |
+| `ragnaros` | `install-system`, `install-service`, `paths`, `diagnose` (see [Reporting a new device](#reporting-a-new-device)) |
 | `ragnaros-fetch-gifs` | opt-in anime GIF themes for the strip (see [GIF themes](#gif-themes)) |
 | `ragnaros-claude-hook` | Claude Code hook (see [Notices that wait for you](#notices-that-wait-for-you)) |
 | `ragnaros-strip-gif` | convert any GIF to the 704x124 full-strip format |
@@ -311,6 +311,47 @@ done
 connected, so the deck becomes a blank input device; the grab is released the
 moment the client disconnects. Profile switches, layer changes and alerts are
 published on the same stream.
+
+## Reporting a new device
+
+Ragnaros drives one deck, the SS552 (`0200:3001`). Other Redragon decks share its USB
+vendor ID `0200` (which `lsusb` labels "TP-Link") and may or may not speak the same
+protocol. If you have one, two things show whether it can be added.
+
+**1. A device report.** `ragnaros diagnose` prints a Markdown report on every vendor-`0200`
+device plugged in: IDs and strings, interfaces and endpoints, the HID report descriptors,
+the hidraw and USB device nodes with their permissions, which udev rules and usbhid quirks
+cover it, and the ragnaros, kernel and distribution versions. It only reads sysfs and the
+permissions in `/dev`: the deck is never opened, so it needs no root and is safe while the
+daemon runs. It leaves out the serial number, the hostname and user names.
+
+```bash
+ragnaros diagnose > report.md          # --device VID:PID reports any other device
+```
+
+Paste `report.md` into an issue, with how many keys, knobs and screens the deck has. What
+to try next goes to the terminal, not to the file.
+
+**2. An experimental test.** `ragnarosd --experimental-pid 0x2000` (or
+`RAGNAROS_EXPERIMENTAL_PID=0x2000`) also opens that product ID and drives it with the SS552
+protocol. It is off unless you ask for it, it is marked experimental in the daemon's log and
+in `ragnarosctl status`, and it logs every raw input report the deck sends. Nothing about
+it is known to work.
+
+The udev rules only give your user the SS552, so hand yourself the deck's USB node (the
+`device node` line of the report) until you unplug it, instead of widening the rules:
+
+```bash
+sudo chown "$USER" /dev/bus/usb/005/002   # the device node from the report
+systemctl --user stop ragnarosd           # if it runs
+ragnarosd --experimental-pid 0x2000       # stays in the foreground; Ctrl+C stops it
+ragnarosctl watch --grab                  # in a second terminal: press every key, turn every knob
+```
+
+`--grab` keeps the profile's actions from running while you press things. Report whether
+icons show up and on which keys (a photo helps), and paste the output of both terminals.
+Unplugging the deck undoes the `chown`. From a git checkout the commands are
+`python3 -m ragnaros.cli diagnose`, `python3 daemon/ragnarosd.py` and `tools/ragnarosctl`.
 
 ## Tools
 

@@ -3,6 +3,7 @@
   ragnaros install-system [--print]     udev rules + usbhid quirk (sudo, one reboot)
   ragnaros install-service [--print]    systemd user unit for ragnarosd
   ragnaros paths                        where profiles, assets and GIF themes live
+  ragnaros diagnose [--device VID:PID]  read-only device report to paste in an issue
 
 The .deb and AUR packages already install the udev rules, the quirk and
 the user units; there you only run `systemctl --user enable --now ragnarosd`.
@@ -15,7 +16,7 @@ import shutil
 import subprocess
 import sys
 
-from . import __version__, control, paths, theme
+from . import __version__, control, diagnose, paths, theme
 
 UDEV_RULES = "70-ragnaros.rules"
 QUIRK_CONF = "ragnaros-usbhid.conf"
@@ -188,6 +189,13 @@ def show_paths(args):
     return 0
 
 
+def device_arg(text):
+    try:
+        return diagnose.parse_device(text)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(str(error)) from None
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="ragnaros", description="Setup helpers for the Ragnaros deck daemon.",
@@ -212,6 +220,11 @@ def main(argv=None):
 
     p = sub.add_parser("paths", help="show where profiles, assets and GIF themes live")
     p.set_defaults(func=show_paths)
+
+    p = sub.add_parser("diagnose", help="read-only device report to paste in an issue")
+    p.add_argument("--device", type=device_arg, metavar="VID:PID",
+                   help="report this USB device instead of every vendor-0200 one")
+    p.set_defaults(func=diagnose.run)
 
     args = parser.parse_args(argv)
     if not args.command:

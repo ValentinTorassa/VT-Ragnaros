@@ -92,7 +92,7 @@ All three install the same commands:
 | `ragnarosctl` | drive the running daemon (see [Control CLI](#control-cli)) |
 | `ragnaros` | `install-system`, `install-service`, `paths`, `diagnose` (see [Reporting a new device](#reporting-a-new-device)) |
 | `ragnaros-fetch-gifs` | opt-in anime GIF themes for the strip (see [GIF themes](#gif-themes)) |
-| `ragnaros-claude-hook` | Claude Code hook (see [Notices that wait for you](#notices-that-wait-for-you)) |
+| `ragnaros-claude-hook` | Claude Code hook, and `review` / `label` / `eval` for its optional Jev log (see [Notices that wait for you](#notices-that-wait-for-you)) |
 | `ragnaros-strip-gif` | convert any GIF to the 704x124 full-strip format |
 | `ragnaros-preview-strip` | render strip layouts to a PNG without the deck |
 | `ragnaros-usage` | summarize the usage log |
@@ -124,6 +124,7 @@ the ones shipped with ragnaros; `ragnaros paths` prints the actual directories.
 | your profiles / icons | `~/.config/ragnaros/profiles/`, `~/.config/ragnaros/assets/` |
 | downloaded GIF themes | `~/.local/share/ragnaros/gifs/` |
 | state, usage log, album art | `~/.local/state/ragnaros/` |
+| Claude hook settings (optional) | `~/.config/ragnaros/claude-hook.yaml` |
 
 A profile in `~/.config/ragnaros/profiles/` with the same name as a bundled one replaces it.
 
@@ -291,6 +292,81 @@ From a checkout without installing, use `python3 ~/path/to/VT-Ragnaros/tools/cla
 It exits 0 whatever happens, so a stopped daemon or an unplugged deck never
 breaks the session. Registered as a `Notification` hook instead, it raises the
 notice when Claude is waiting for a permission answer.
+
+#### Waiting, finished or stuck (optional, off by default)
+
+A stop can mean three things: Claude **waits** for you (a question, a permission, a
+choice), it **finished**, or it got **stuck** (an error it could not get past, a missing
+credential, it gave up). Only the text says which, so the hook can ask
+Jev (TypeSafe AI, through Vercel AI Gateway), a small decision model that answers closed
+questions with probabilities and never writes text. With Jev in charge, waiting and
+stuck hold the strip as an alert and a finished session gets the usual toast.
+
+Rules come first and Jev only gets the doubtful case:
+
+| stop | class | Jev asked? |
+|---|---|---|
+| `Notification` for a permission, an idle prompt or a question dialog | waiting | no |
+| `StopFailure` (the turn ended on an API error) | stuck | no |
+| `Stop` with background tasks or session crons still in flight | as today | no |
+| a session under a folder in `jev_skip` | as today | **never** |
+| any other `Stop` | Jev's pick | yes |
+
+Settings live in `~/.config/ragnaros/claude-hook.yaml` (read on every stop: no restart):
+
+```yaml
+jev: shadow          # off (default) | shadow | on
+# jev_provider: vercel  # vercel (default, Vercel AI Gateway) | openrouter
+jev_skip:            # folders whose sessions never reach Jev, matched against the
+  - ~/work/client    # session's cwd and the folder it started in (symlinks resolved)
+# jev_question: en-1 # the question set: en-1 (default) or es-1, the same in Spanish
+# jev_timeout: 1.5   # seconds, capped at 1.5
+# jev_min: 0.5       # in `on`, Jev's pick needs at least this probability
+```
+
+- **off**: nothing is called, nothing is logged; the hook behaves exactly as before.
+- **shadow**: the notice is today's, and a detached worker asks Jev and logs what it
+  would have picked next to what the hook did.
+- **on**: the worker shows Jev's pick when it reaches `jev_min`, and today's notice
+  when it does not, or when anything fails (no key, timeout, HTTP error, odd reply).
+
+`RAGNAROS_JEV=off|shadow|on` overrides the mode, `RAGNAROS_JEV_PROVIDER` the provider,
+`RAGNAROS_JEV_MODEL` the pinned model (`typesafe-ai/jev-1.14.0` on the gateway,
+`typesafe/jev-1.14` on OpenRouter), and `RAGNAROS_JEV_SKIP` (a
+`:`-separated list) adds folders to the skip-list. A config file that does not parse
+turns Jev off, since its skip-list may be all that keeps a folder at home.
+
+**Key.** A Vercel AI Gateway key in `$AI_GATEWAY_API_KEY`, or in
+`~/.config/ragnaros/jev.key` (`$RAGNAROS_JEV_KEY_FILE`), which must be a plain file only
+you can read: `chmod 600`. The gateway is asked to route only to TypeSafe. With
+`jev_provider: openrouter` the variable is `$OPENROUTER_API_KEY` and the key file holds
+that key instead. The key never reaches the logs.
+
+**What leaves the machine.** Only Claude's last message, cut to its first 300 and last
+1,200 characters, with anything shaped like a token, key or password masked; its length;
+and the stop reason and last tool when the transcript has them. Never the project, the
+path or the session id. The message is sent as data, and the questions tell Jev to
+ignore any instructions inside it.
+
+**Speed.** The hook itself only adds the time to start the worker (about 10 ms); the
+worker runs in its own session with no shared output, so Claude never waits for it.
+The whole decision has a hard 1.5 s wall clock. In `on` mode the notice comes from the
+worker, so it can show up to that much later.
+
+**The log.** Every decision is one JSON line in `~/.local/state/ragnaros/claude-jev.jsonl`
+(`$RAGNAROS_JEV_LOG`), mode 600: time, id, session, project, the model, the question set,
+the provider, the hook's class and signal, Jev's class, probabilities, signal, latency,
+cost and input tokens (when the gateway reports them), what was actually shown, any
+error, and the excerpt Jev read. To turn it into labels:
+
+```bash
+ragnaros-claude-hook review            # where Jev and the hook disagree, newest first
+ragnaros-claude-hook label 8b2119ff11 waiting
+ragnaros-claude-hook eval              # the hook vs Jev (and `on` at each jev_min) on the labels
+```
+
+From a checkout, `python3 tools/claude_hook.py review` works the same. Labels go to
+`claude-jev-labels.jsonl` next to the log; nothing in these commands calls Jev.
 
 ### Scripts can take the deck
 

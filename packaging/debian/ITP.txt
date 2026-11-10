@@ -15,7 +15,7 @@ Owner: Valentin Torassa <valentintorassacolombero@gmail.com>
 X-Debbugs-Cc: debian-devel@lists.debian.org
 
 * Package name    : ragnaros
-  Version         : 0.1.1
+  Version         : 0.1.2
   Upstream Contact: Valentin Torassa <valentintorassacolombero@gmail.com>
 * URL             : https://github.com/ValentinTorassa/VT-Ragnaros
 * License         : Expat; key icons CC-BY-4.0 (Font Awesome Free glyphs)
@@ -49,7 +49,7 @@ Dependencies: python3-pil, python3-yaml, libusb-1.0-0 and fonts-dejavu-core,
 all in Debian. It is not a dependency of another package.
 
 Upstream status: the author is upstream and uses it daily. Releases are
-tagged on GitHub (v0.1.0 so far, v0.1.1 prepared); the tests (about 200)
+tagged on GitHub (v0.1.0, v0.1.1; v0.1.2 prepared); the tests (about 200)
 run in GitHub Actions. A debian/ directory is maintained in the upstream
 repository; it builds with dpkg-buildpackage in a clean trixie environment,
 and lintian (pedantic) reports only initial-upload-closes-no-bugs.

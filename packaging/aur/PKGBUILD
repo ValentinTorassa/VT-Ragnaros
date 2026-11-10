@@ -9,7 +9,7 @@
 # The checksum is the hash of GitHub's tarball of the tag, so it can only be
 # filled once the tag is pushed. Then, from the repository root:
 #
-#   v=0.1.1
+#   v=0.1.2
 #   curl -fsSL -o "/tmp/ragnaros-$v.tar.gz" \
 #       "https://github.com/ValentinTorassa/VT-Ragnaros/archive/refs/tags/v$v.tar.gz" &&
 #     sum=$(sha256sum "/tmp/ragnaros-$v.tar.gz" | cut -d' ' -f1) &&
@@ -21,7 +21,7 @@
 # into a clone of ssh://aur@aur.archlinux.org/ragnaros.git to push them there.
 # `makepkg -f` on Arch builds and tests against the real tarball first.
 pkgname=ragnaros
-pkgver=0.1.1
+pkgver=0.1.2
 pkgrel=1
 pkgdesc="Linux driver and daemon for the Ragnaros (Redragon SS552) USB control deck"
 arch=('any')
@@ -36,7 +36,7 @@ optdepends=('playerctl: media knobs and the now-playing strip'
             'libnotify: pomodoro and OBS notices (notify-send)')
 install=ragnaros.install
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('2f0c114b278c096ad4771f25db8e0f2c5ad41052a0f7b1346c87e104433897bb')
+sha256sums=('SKIP')  # filled once the tag is pushed: see the top of this file
 
 build() {
   cd "VT-Ragnaros-$pkgver"

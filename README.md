@@ -1,5 +1,7 @@
 # VT-Ragnaros
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24112181.svg)](https://doi.org/10.5281/zenodo.24112181)
+
 A reverse-engineered, from-scratch Linux driver and daemon for the **Ragnaros USB control deck** (Redragon SS552, USB `0200:3001`) - a Linux-native alternative to the vendor's Windows software.
 
 The daemon renders icons and animated GIFs onto the deck's LCD keys and touch strip, and runs a configurable command on every input event.
@@ -454,4 +456,13 @@ MIT - see [LICENSE](LICENSE).
 
 ## Citation
 
-To cite this software, use the metadata in [CITATION.cff](CITATION.cff).
+VT-Ragnaros is archived on Zenodo. The concept DOI
+[10.5281/zenodo.24112181](https://doi.org/10.5281/zenodo.24112181) covers every version and
+resolves to the latest one; use it unless you need a specific release. Each release also has
+its own DOI: v0.1.2 is [10.5281/zenodo.24112182](https://doi.org/10.5281/zenodo.24112182).
+
+> Torassa Colombero, V. (2026). *VT-Ragnaros* (v0.1.2) [Computer software]. Zenodo.
+> https://doi.org/10.5281/zenodo.24112182
+
+The same metadata is in [CITATION.cff](CITATION.cff), which GitHub's "Cite this repository"
+button reads.

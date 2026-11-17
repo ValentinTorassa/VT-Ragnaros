@@ -7,6 +7,14 @@ authors:
   - given-names: Valentín
     family-names: Torassa Colombero
     orcid: "https://orcid.org/0009-0005-7980-4128"
+doi: 10.5281/zenodo.24112181
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.24112181
+    description: "Concept DOI: all versions, resolves to the latest one."
+  - type: doi
+    value: 10.5281/zenodo.24112182
+    description: "VT-Ragnaros v0.1.2."
 repository-code: "https://github.com/ValentinTorassa/VT-Ragnaros"
 license: MIT
 keywords:

@@ -49,6 +49,14 @@ def load_profile(name):
     return profile
 
 
+def is_external(name):
+    """A profile only a client can paint. One that cannot be read is not that."""
+    try:
+        return bool(load_profile(name).get("external"))
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
 def saved_profile_name():
     try:
         with open(os.path.join(STATE_DIR, "ragnaros", "profile")) as f:
@@ -187,6 +195,10 @@ class Deck:
         self._loop_cache = {}
         self._icon_cache = {}
         self._last_toast = ("", 0.0)
+        # painted from outside (`ragnarosctl paint`): these win over the profile
+        self.painted = {}
+        self.badges = {}
+        self.strip_held = False
         # album art is fetched off this loop; see ragnaros/art.py
         self.art = art.ArtLoader(os.path.join(STATE_DIR, "ragnaros", "art"))
         self._profile_mtime = self._mtime()
@@ -259,6 +271,55 @@ class Deck:
                 renderer.load_icon(path, protocol.KEY_LCD, protocol.ROTATION))
         return self._icon_cache[path]
 
+    def _blank_jpeg(self):
+        from PIL import Image
+        return renderer.to_jpeg(Image.new("RGB", protocol.KEY_LCD, (0, 0, 0)))
+
+    def _badged_jpeg(self, key, path):
+        """A key's own icon, with the badge a client asked for in its corner."""
+        badge = self.badges.get(key)
+        if not badge:
+            return self._icon_jpeg(path)
+        icon = renderer.load_icon(path, protocol.KEY_LCD)
+        return renderer.to_jpeg(renderer.badge(icon, *badge).rotate(protocol.ROTATION))
+
+    def paint_key(self, key, source):
+        """Show a client's image on one key until the profile repaints."""
+        from PIL import Image
+        img = renderer.cover_crop(Image.open(source).convert("RGB"), protocol.KEY_LCD)
+        self.painted[key] = renderer.to_jpeg(img.rotate(protocol.ROTATION))
+        self.key_anims.pop(key, None)
+        self.dev.send_image(key, self.painted[key])
+        self.dev.flush()
+
+    def paint_strip(self, source, seconds=None):
+        """Show a client's 704x124 frame on the strip: held, or for some seconds."""
+        from PIL import Image
+        img = Image.open(source).convert("RGB")
+        if img.size != self.STRIP_FULL:
+            img = renderer.cover_crop(img, self.STRIP_FULL)
+        self.push_strip_frame(img)
+        if seconds is None:
+            self.strip_held = True
+            self.overlay_until = 0.0
+        else:
+            self.overlay_until = time.monotonic() + seconds
+            self.dash_next = self.np_next = self.gif_next = 0.0
+
+    def set_badge(self, key, text=None, color=(242, 163, 58)):
+        """Put a small count on a key's own icon, or take it off with text=None."""
+        if text:
+            self.badges[key] = (str(text)[:3], color)
+        else:
+            self.badges.pop(key, None)
+        spec = self.active_keys().get(str(key)) or {}
+        path = self.asset(spec["icon"]) if spec.get("icon") else None
+        if key in self.painted or not path or not os.path.exists(path) or path.endswith(".gif"):
+            return False  # nothing to draw on right now; kept for the next repaint
+        self.dev.send_image(key, self._badged_jpeg(key, path))
+        self.dev.flush()
+        return True
+
     def _loop(self, kind, path, build):
         """Encoded frames are kept per asset: repaints and layer switches are free."""
         if (kind, path) not in self._loop_cache:
@@ -268,11 +329,17 @@ class Deck:
     def paint_keys(self):
         keys = self.active_keys()
         self.key_anims = {}
+        # the profile takes the deck back: whatever a client painted is gone,
+        # and the client hears about it so it can paint again if it still should
+        stale, self.painted = set(self.painted), {}
+        released, self.strip_held = self.strip_held, False
+        drawn = set()
         for key, spec in keys.items():
             icon = spec.get("icon")
             path = self.asset(icon) if icon else None
             if not path or not os.path.exists(path):
                 continue
+            drawn.add(int(key))
             if path.endswith(".gif"):
                 frames = self._loop("key", path, lambda p: [
                     (renderer.to_jpeg(f), d) for f, d in
@@ -280,8 +347,14 @@ class Deck:
                 if frames:
                     self.key_anims[int(key)] = [frames, 0, 0.0]
             else:
-                self.dev.send_image(int(key), self._icon_jpeg(path))
+                self.dev.send_image(int(key), self._badged_jpeg(int(key), path))
                 self.dev.flush()
+        for key in sorted(stale - drawn):  # a painted key the profile leaves empty
+            self.dev.send_image(key, self._blank_jpeg())
+            self.dev.flush()
+        if stale or released:
+            self.dash_next = self.np_next = self.gif_next = 0.0
+            self.publish("paint", state="cleared")
         self.mic_key = next(
             (int(k) for k, spec in keys.items()
              if isinstance(spec.get("action"), str)
@@ -404,6 +477,9 @@ class Deck:
 
     def cycle_profile(self, direction):
         names = available_profiles()
+        if not (self.control and self.control.subscribers):
+            # a screen that only a client can paint is a blank stop with nobody connected
+            names = [n for n in names if n == self.profile.get("_name") or not is_external(n)]
         if not names:
             return
         try:
@@ -599,6 +675,8 @@ class Deck:
                     waited, self.STRIP_FULL, pulse=int(now) % 2 == 0))
                 self.alert_next = now + 1.0
             return
+        if self.strip_held:
+            return  # a client owns the strip until it releases it or the profile repaints
         if self.pinned == "dashboard":
             if now >= self.dash_next:
                 self.push_dashboard()
@@ -754,6 +832,8 @@ class Deck:
             return -1, ""
 
     def repaint_tile(self, key, img):
+        if key in self.painted:
+            return  # a client's tile is on that key
         self.dev.send_image(key, renderer.to_jpeg(img))
         self.dev.flush()
 
@@ -1014,6 +1094,8 @@ class Deck:
             return "notice"  # a toast or a knob overlay, on its way out
         if self.alert:
             return "alert"
+        if self.strip_held:
+            return "painted"
         if self.pinned:
             return self.pinned
         if self.player:
@@ -1034,6 +1116,8 @@ class Deck:
                                                  for k in ("title", "artist", "length")},
                       "alert": self.alert and self.alert["summary"],
                       "watchers": len(self.control.subscribers) if self.control else 0,
+                      "painted": sorted(self.painted),
+                      "badges": {str(k): v[0] for k, v in sorted(self.badges.items())},
                       "pomodoro": self.pomo and self.pomo["phase"],
                       "obs": self.obs_state}
             if self.experimental_id:
@@ -1098,6 +1182,8 @@ class Deck:
             self.show_toast(flags.get("app", "ragnaros"), text[0],
                             " ".join(text[1:]), float(flags.get("seconds", TOAST_SECONDS)))
             return {"ok": True}
+        if command == "paint":
+            return self.handle_paint(args)
         if command == "key":
             try:
                 spec = self.active_keys().get(str(int(args[0]))) or {}
@@ -1125,6 +1211,58 @@ class Deck:
             self.set_locked(command == "sleep")
             return {"ok": True, "locked": self.locked}
         return {"ok": False, "error": f"unknown command: {command}"}
+
+    def handle_paint(self, args):
+        """paint key N IMAGE ... | strip IMAGE [--seconds=S] | badge N [TEXT [#rrggbb]] | clear"""
+        flags = dict(a[2:].split("=", 1) for a in args if a.startswith("--") and "=" in a)
+        words = [a for a in args if not a.startswith("--")]
+        if not words:
+            return {"ok": False, "error": "paint takes key, strip, badge or clear"}
+        done = []
+        try:
+            while words:
+                what = words.pop(0)
+                if what == "clear":
+                    self.badges = {}
+                    self.paint_keys()
+                    done.append("clear")
+                elif what == "key":
+                    key, source = int(words.pop(0)), words.pop(0)
+                    if not 0 <= key <= 9:
+                        raise ValueError("key takes an index 0-9")
+                    self.paint_key(key, source)
+                    done.append(f"key:{key}")
+                elif what == "strip":
+                    if "--release" in args:
+                        self.strip_held = False
+                        self.overlay_until = 0.0
+                        self.dash_next = self.np_next = self.gif_next = 0.0
+                        self.last_activity = time.monotonic() - IDLE_SECONDS
+                        done.append("strip:released")
+                    else:
+                        seconds = float(flags["seconds"]) if "seconds" in flags else None
+                        self.paint_strip(words.pop(0), seconds)
+                        done.append("strip")
+                elif what == "badge":
+                    key = int(words.pop(0))
+                    if not 0 <= key <= 9:
+                        raise ValueError("badge takes a key index 0-9")
+                    text = words.pop(0) if words and not words[0].startswith("#") \
+                        and words[0] not in ("key", "strip", "badge", "clear") else None
+                    color = (242, 163, 58)
+                    if words and words[0].startswith("#") and len(words[0]) == 7:
+                        hexa = words.pop(0)
+                        color = tuple(int(hexa[i:i + 2], 16) for i in (1, 3, 5))
+                    self.set_badge(key, text, color)
+                    done.append(f"badge:{key}")
+                else:
+                    raise ValueError(f"paint does not know '{what}'")
+        except IndexError:
+            return {"ok": False, "error": "paint: missing argument", "painted": done}
+        except (ValueError, OSError) as error:
+            return {"ok": False, "error": f"paint: {error}", "painted": done}
+        return {"ok": True, "painted": done, "layer": self.layer or "base",
+                "profile": self.profile.get("_name")}
 
     def reconnect(self):
         print("ragnaros: device lost, waiting for reattach", file=sys.stderr)

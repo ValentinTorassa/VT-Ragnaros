@@ -194,6 +194,7 @@ def bare_deck(profile=None, **state):
     deck.brightness = 100
     deck.pomo = deck.obs_state = None
     deck._last_toast = ("", 0.0)
+    deck.painted, deck.badges, deck.strip_held = {}, {}, False
     deck.log_usage = lambda *a, **k: None
     deck.paint_keys = lambda: None
     deck.__dict__.update(state)
@@ -437,3 +438,121 @@ def test_the_work_profile_paths_reach_ghostty_expanded(monkeypatch):
     for key in ("0", "1"):
         (argv,) = started(monkeypatch, keys[key]["action"])
         assert argv[1].startswith("--working-directory=/home/deck/proyectos/")
+
+
+class PaintDev(FakeDev):
+    def __init__(self):
+        self.images, self.flushed = [], 0
+
+    def send_image(self, key, data, strip=False):
+        self.images.append((key, strip, len(data)))
+
+    def flush(self):
+        self.flushed += 1
+
+
+def painting_deck(tmp_path, profile=None):
+    from PIL import Image
+
+    deck = bare_deck(profile or {"_name": "test", "keys": {"0": {"icon": "icons/lock.png", "action": "true"}},
+                                 "layers": {"media": {}}})
+    del deck.paint_keys  # the real one this time
+    deck.dev = PaintDev()
+    deck.key_anims, deck._icon_cache, deck._loop_cache = {}, {}, {}
+    deck.mic_muted = deck.mic_key = deck.pomo_key = None
+    deck.obs_keys = {}
+    deck.last_activity = 0.0
+    tile, frame = tmp_path / "tile.png", tmp_path / "frame.png"
+    Image.new("RGB", (112, 112), (242, 163, 58)).save(tile)
+    Image.new("RGB", (704, 124), (20, 20, 20)).save(frame)
+    return deck, str(tile), str(frame)
+
+
+def test_a_painted_key_wins_until_the_profile_repaints(tmp_path):
+    deck, tile, _ = painting_deck(tmp_path)
+    deck.key_anims[4] = [[(b"x", 0.1)], 0, 0.0]
+    reply = deck.handle_control(["paint", "key", "4", tile, "key", "9", tile])
+    assert reply["ok"] and reply["painted"] == ["key:4", "key:9"]
+    assert [i[0] for i in deck.dev.images] == [4, 9]
+    assert 4 not in deck.key_anims            # its GIF stops under the tile
+    before = len(deck.dev.images)
+    from PIL import Image
+    deck.repaint_tile(4, Image.new("RGB", (112, 112)))
+    assert len(deck.dev.images) == before     # a state tile does not paint over it
+    assert deck.handle_control(["status"])["painted"] == [4, 9]
+
+
+def test_the_profile_takes_the_deck_back_and_says_so(tmp_path):
+    class Listener:
+        subscribers, sent = [], []
+
+        def broadcast(self, event):
+            self.sent.append(event)
+
+        def grabbed(self):
+            return False
+
+    deck, tile, frame = painting_deck(tmp_path)
+    deck.control = Listener()
+    deck.handle_control(["paint", "key", "0", tile, "key", "7", tile, "strip", frame])
+    assert deck.strip_held and deck.strip_state() == "painted"
+    deck.dev.images.clear()
+    assert deck.set_layer("media")            # any repaint: a layer, a profile, an unlock
+    assert deck.painted == {} and not deck.strip_held
+    assert [i[0] for i in deck.dev.images] == [0, 7]   # 0 gets its icon back, 7 goes dark
+    assert {"type": "paint", "state": "cleared"}.items() <= deck.control.sent[0].items()
+
+
+def test_a_held_strip_is_left_alone_and_a_timed_one_expires(tmp_path, monkeypatch):
+    deck, _, frame = painting_deck(tmp_path)
+    deck.handle_control(["paint", "strip", frame])
+    assert [i[1] for i in deck.dev.images] == [True] * 4       # four panels
+    idle = []
+    monkeypatch.setattr(deck, "idle_tick", idle.append)
+    import time
+    deck.strip_tick(time.monotonic() + 9999)
+    assert idle == []                                           # held: nobody else draws
+    assert deck.handle_control(["paint", "strip", "--release"])["painted"] == ["strip:released"]
+    deck.strip_tick(time.monotonic() + 1)
+    assert len(idle) == 1
+    deck.handle_control(["paint", "strip", frame, "--seconds=5"])
+    assert not deck.strip_held and deck.overlay_until > 0
+
+
+def test_a_badge_goes_on_the_keys_own_icon_and_survives_a_repaint(tmp_path):
+    deck, tile, _ = painting_deck(tmp_path)
+    assert deck.handle_control(["paint", "badge", "0", "3", "#3fbf7f"])["ok"]
+    assert deck.badges == {0: ("3", (63, 191, 127))}
+    plain = len(deck._icon_jpeg(deck.asset("icons/lock.png")))
+    assert deck.dev.images[-1][0] == 0 and deck.dev.images[-1][2] != plain
+    deck.paint_keys()
+    assert deck.dev.images[-1][2] != plain    # still badged after the profile repaints
+    deck.handle_control(["paint", "badge", "0"])
+    assert deck.badges == {} and deck.dev.images[-1][2] == plain
+    deck.handle_control(["paint", "badge", "5", "1"])   # no icon there: kept, nothing drawn
+    assert deck.badges == {5: ("1", (242, 163, 58))}
+
+
+def test_paint_refuses_nonsense_without_touching_the_deck(tmp_path):
+    deck, tile, _ = painting_deck(tmp_path)
+    for bad in (["paint"], ["paint", "key", "12", tile], ["paint", "key", "1"],
+                ["paint", "key", "1", "/no/such/file.png"], ["paint", "sticker", "1"]):
+        assert deck.handle_control(bad)["ok"] is False
+    assert deck.dev.images == []
+
+
+def test_swiping_skips_a_client_screen_while_no_client_is_connected(monkeypatch):
+    switched = []
+    monkeypatch.setattr(ragnarosd, "available_profiles", lambda: ["agents", "streaming", "work"])
+    monkeypatch.setattr(ragnarosd, "is_external", lambda name: name == "agents")
+    deck = bare_deck({"_name": "work"})
+    deck.switch_profile = switched.append
+    deck.cycle_profile(1)
+    assert switched == ["streaming"]              # wraps past "agents"
+
+    class Listening:
+        subscribers = [object()]
+
+    deck.control = Listening()
+    deck.cycle_profile(1)
+    assert switched[-1] == "agents"

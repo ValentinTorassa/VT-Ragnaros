@@ -11,6 +11,14 @@
   ragnarosctl alert --clear           (any key on the deck also clears it)
   ragnarosctl watch [--grab]          stream every input as JSON; --grab
                                       suppresses the profile's own actions
+  ragnarosctl paint key 3 tile.png    show your own image on a key (several
+                                      "key N FILE" pairs fit in one call)
+  ragnarosctl paint strip frame.png [--seconds=6]
+                                      your own 704x124 frame; without --seconds
+                                      it stays until `paint strip --release`
+  ragnarosctl paint badge 3 2 "#f2a33a"   a count on that key's own icon;
+                                      `paint badge 3` takes it off
+  ragnarosctl paint clear             hand everything back to the profile
   ragnarosctl reload | reset-display | sleep | wake
 
 Add --json to print the raw reply.

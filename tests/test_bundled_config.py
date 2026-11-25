@@ -26,7 +26,7 @@ PANELS = ragnarosd.Deck.STRIP_FULL[0] // protocol.STRIP_LCD[0]
 MAX_FRAMES = 500
 
 # the fields ragnarosd.py reads; anything else is a typo it would ignore
-TOP_LEVEL = {"name", "strip", "keys", "knobs", "layers", "notifications"}
+TOP_LEVEL = {"name", "strip", "keys", "knobs", "layers", "notifications", "external"}
 KEY_FIELDS = {"icon", "action", "profile", "layer", "layer_toggle"}
 KEY_HANDLERS = ("action", "profile", "layer", "layer_toggle")
 KNOB_FIELDS = {"rotate", "press"}

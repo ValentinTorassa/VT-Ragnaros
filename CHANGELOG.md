@@ -11,13 +11,14 @@ Notable changes to VT-Ragnaros. The format is based on
 - `ragnarosctl paint`: a script can show its own image on a key, its own frame
   on the strip (held or for some seconds) and a count on a key's own icon. The
   profile takes the deck back on any repaint and says so on the `watch` stream.
-- An empty `agents` layer in the bundled profiles, on knob 4's press, for a
-  program to paint.
+- An `agents` profile with no keys of its own, for a program to paint. It is
+  marked `external: true`: swiping skips such a profile while no client is
+  connected.
 
 ### Changed
 
 - Knob 4's press in `streaming`, `work`, `ai-tools` and `system` opens the
-  `agents` layer instead of play/pause, which knob 2's press already does.
+  `agents` profile instead of play/pause, which knob 2's press already does.
 
 ## [0.1.2] - 2026-11-10
 

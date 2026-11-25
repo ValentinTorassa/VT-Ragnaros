@@ -455,7 +455,7 @@ def painting_deck(tmp_path, profile=None):
     from PIL import Image
 
     deck = bare_deck(profile or {"_name": "test", "keys": {"0": {"icon": "icons/lock.png", "action": "true"}},
-                                 "layers": {"agents": {}}})
+                                 "layers": {"media": {}}})
     del deck.paint_keys  # the real one this time
     deck.dev = PaintDev()
     deck.key_anims, deck._icon_cache, deck._loop_cache = {}, {}, {}
@@ -497,7 +497,7 @@ def test_the_profile_takes_the_deck_back_and_says_so(tmp_path):
     deck.handle_control(["paint", "key", "0", tile, "key", "7", tile, "strip", frame])
     assert deck.strip_held and deck.strip_state() == "painted"
     deck.dev.images.clear()
-    assert deck.set_layer("agents")           # any repaint: a layer, a profile, an unlock
+    assert deck.set_layer("media")            # any repaint: a layer, a profile, an unlock
     assert deck.painted == {} and not deck.strip_held
     assert [i[0] for i in deck.dev.images] == [0, 7]   # 0 gets its icon back, 7 goes dark
     assert {"type": "paint", "state": "cleared"}.items() <= deck.control.sent[0].items()
@@ -539,3 +539,20 @@ def test_paint_refuses_nonsense_without_touching_the_deck(tmp_path):
                 ["paint", "key", "1", "/no/such/file.png"], ["paint", "sticker", "1"]):
         assert deck.handle_control(bad)["ok"] is False
     assert deck.dev.images == []
+
+
+def test_swiping_skips_a_client_screen_while_no_client_is_connected(monkeypatch):
+    switched = []
+    monkeypatch.setattr(ragnarosd, "available_profiles", lambda: ["agents", "streaming", "work"])
+    monkeypatch.setattr(ragnarosd, "is_external", lambda name: name == "agents")
+    deck = bare_deck({"_name": "work"})
+    deck.switch_profile = switched.append
+    deck.cycle_profile(1)
+    assert switched == ["streaming"]              # wraps past "agents"
+
+    class Listening:
+        subscribers = [object()]
+
+    deck.control = Listening()
+    deck.cycle_profile(1)
+    assert switched[-1] == "agents"

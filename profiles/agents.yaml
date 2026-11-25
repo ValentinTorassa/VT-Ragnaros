@@ -1,0 +1,8 @@
+name: agents
+# A screen for a program to paint: it has no keys of its own. A client watches for
+# this profile, takes the inputs with `ragnarosctl watch --grab` and draws the ten
+# keys and the strip with `ragnarosctl paint` (see "Painting from outside" in the
+# README). Swiping past it skips it while no client is connected.
+external: true
+keys: {}
+knobs: {}

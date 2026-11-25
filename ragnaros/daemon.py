@@ -49,6 +49,14 @@ def load_profile(name):
     return profile
 
 
+def is_external(name):
+    """A profile only a client can paint. One that cannot be read is not that."""
+    try:
+        return bool(load_profile(name).get("external"))
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
 def saved_profile_name():
     try:
         with open(os.path.join(STATE_DIR, "ragnaros", "profile")) as f:
@@ -469,6 +477,9 @@ class Deck:
 
     def cycle_profile(self, direction):
         names = available_profiles()
+        if not (self.control and self.control.subscribers):
+            # a screen that only a client can paint is a blank stop with nobody connected
+            names = [n for n in names if n == self.profile.get("_name") or not is_external(n)]
         if not names:
             return
         try:

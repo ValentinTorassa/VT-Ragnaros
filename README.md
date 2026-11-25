@@ -411,11 +411,12 @@ change, an unlock, a reload. The daemon then says so on the `watch` stream
 paints again. A badge is different: it belongs to the key's icon and survives
 those repaints until it is removed.
 
-Together with `watch --grab` this is enough for a program to own a whole layer.
-The bundled profiles keep an empty `agents` layer on knob 4's press for that: with
-no program listening, nothing changes. The program waits for
-`{"type": "layer", "name": "agents"}`, opens `watch --grab`, paints the ten keys
-and the strip, and calls `ragnarosctl layer base` when it is done.
+Together with `watch --grab` this is enough for a program to own a whole screen.
+The bundled `agents` profile is that screen: it has no keys of its own and is
+marked `external: true`, so swiping skips it while no client is connected. Knob
+4's press opens it from the other profiles. The program waits for
+`{"type": "profile", "name": "agents"}`, opens `watch --grab`, paints the ten
+keys and the strip, and switches to another profile when it is done.
 
 ## Reporting a new device
 

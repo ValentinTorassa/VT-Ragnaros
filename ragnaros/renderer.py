@@ -292,6 +292,21 @@ def overlay_strip(label, frac, size):
     return img
 
 
+def badge(icon, text, color=(242, 163, 58)):
+    """A key icon with a small filled count in its top-right corner."""
+    img = icon.copy()
+    d = ImageDraw.Draw(img)
+    size = img.width
+    r = int(size * 0.2)
+    cx, cy = size - r - 4, r + 4
+    d.ellipse((cx - r - 3, cy - r - 3, cx + r + 3, cy + r + 3), fill=(0, 0, 0))
+    d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=tuple(color))
+    font = fit_text(d, text, 2 * r - 8, int(r * 1.5))
+    box = d.textbbox((0, 0), text, font=font)
+    d.text((cx - (box[2] + box[0]) / 2, cy - (box[3] + box[1]) / 2), text, font=font, fill=(12, 12, 14))
+    return img
+
+
 def state_tile(size, glyph_path, caption, accent, glyph_fill=(255, 255, 255),
                bg=(16, 17, 21), border=None):
     """Dynamic dark tile: image glyph at top (or None), caption below in accent."""

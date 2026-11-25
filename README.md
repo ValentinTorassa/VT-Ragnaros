@@ -390,6 +390,33 @@ connected, so the deck becomes a blank input device; the grab is released the
 moment the client disconnects. Profile switches, layer changes and alerts are
 published on the same stream.
 
+### Painting from outside
+
+A script can also draw: its own image on a key, its own frame on the strip, or a
+count on a key's own icon. Images are upright PNG or JPEG files; the daemon
+scales, rotates and splits them for the panels.
+
+```sh
+ragnarosctl paint key 3 tile.png                     # 112x112; several "key N FILE" fit in one call
+ragnarosctl paint strip frame.png --seconds=6        # 704x124, like a toast of your own
+ragnarosctl paint strip frame.png                    # no --seconds: it stays
+ragnarosctl paint strip --release                    # ...until you release it
+ragnarosctl paint badge 3 2 "#f2a33a"                # "2" on key 3's icon; `paint badge 3` removes it
+ragnarosctl paint clear                              # hand everything back to the profile
+```
+
+What a script paints wins until the profile repaints the keys: a layer or profile
+change, an unlock, a reload. The daemon then says so on the `watch` stream
+(`{"type": "paint", "state": "cleared"}`), so a script that still owns the layer
+paints again. A badge is different: it belongs to the key's icon and survives
+those repaints until it is removed.
+
+Together with `watch --grab` this is enough for a program to own a whole layer.
+The bundled profiles keep an empty `agents` layer on knob 4's press for that: with
+no program listening, nothing changes. The program waits for
+`{"type": "layer", "name": "agents"}`, opens `watch --grab`, paints the ten keys
+and the strip, and calls `ragnarosctl layer base` when it is done.
+
 ## Reporting a new device
 
 Ragnaros drives one deck, the SS552 (`0200:3001`). Other Redragon decks share its USB

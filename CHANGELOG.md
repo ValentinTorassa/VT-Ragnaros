@@ -4,6 +4,21 @@ Notable changes to VT-Ragnaros. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `ragnarosctl paint`: a script can show its own image on a key, its own frame
+  on the strip (held or for some seconds) and a count on a key's own icon. The
+  profile takes the deck back on any repaint and says so on the `watch` stream.
+- An empty `agents` layer in the bundled profiles, on knob 4's press, for a
+  program to paint.
+
+### Changed
+
+- Knob 4's press in `streaming`, `work`, `ai-tools` and `system` opens the
+  `agents` layer instead of play/pause, which knob 2's press already does.
+
 ## [0.1.2] - 2026-11-10
 
 ### Added
